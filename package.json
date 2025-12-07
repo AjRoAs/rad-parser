@@ -46,7 +46,7 @@
     "bundle:lite": "esbuild src/index-lite.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser-nodict.js --sourcemap --log-level=info && esbuild src/index-lite.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser-nodict.min.js --minify --log-level=info",
     "bundle:dictionary": "esbuild src/dictionary-entry.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser-dictionary.js --sourcemap --log-level=info",
     "bundle": "npm run bundle:full && npm run bundle:lite && npm run bundle:dictionary",
-    "release": "npm run bundle",
+    "release": "npm run build && npm run bundle",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "benchmark": "tsx --tsconfig tsconfig.json benchmark.ts",
