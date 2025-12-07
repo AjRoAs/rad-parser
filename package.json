@@ -42,10 +42,13 @@
   ],
   "scripts": {
     "build": "tsc",
+    "bundle": "esbuild src/index.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser.js --sourcemap --log-level=info && esbuild src/index.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser.min.js --minify --log-level=info",
+    "release": "npm run build && npm run bundle",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.ts\"",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run release"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -53,7 +56,9 @@
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
-  "devDependencies": {},
-  "dependencies": {}
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.15",
+    "esbuild": "^0.20.0",
+    "vitest": "^4.0.15"
+  }
 }
-

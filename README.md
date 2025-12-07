@@ -308,6 +308,36 @@ await parseFromAsyncIterator(readFileInChunks(largeFile), {
 - Enhanced private tag dictionary support
 - Pixel data format conversion utilities
 
+## Release Artifacts
+
+To simplify GitHub and npm releases, RAD-Parser emits two bundled builds in addition to the modular `dist/*` tree:
+
+- `dist/rad-parser.js`: single-file ES module combining the entire parser
+- `dist/rad-parser.min.js`: minified version suitable for CDN or browser-based distributions
+
+Run `npm run release` to regenerate both artifacts (it runs `tsc` followed by the `esbuild` bundling pipeline shown above). This script also runs automatically before `npm publish`, so the npm release always includes the latest bundles. When creating a GitHub release, attach the full `dist` folder plus the `rad-parser.*.js` files so users can download the single-file builds directly.
+
+### GitHub release automation
+
+Pushing a tag that matches `v*` now triggers the GitHub `Release` workflow (`.github/workflows/release.yml`). The workflow:
+
+1. Checks out the repo, installs dependencies, and runs `npm run release` (build + bundle).
+2. Runs `npm publish` with `NODE_AUTH_TOKEN` derived from the `NPM_TOKEN` secret, keeping the npm package in sync.
+3. Creates a GitHub release for the tag and uploads:
+
+    - `rad-parser-dist.zip` (zipped `dist/` tree)
+    - `dist/rad-parser.js`
+    - `dist/rad-parser.min.js`
+
+To publish from CI, configure the repository secrets `NPM_TOKEN` (for npm publish) and rely on the automatically provided `GITHUB_TOKEN` so the workflow can create releases and upload assets without additional credentials.
+
+## Testing
+
+Run `npm run test` to execute the Vitest suite that lives under `tests/` and targets the `src` sources directly.
+For coverage data, run `npx vitest run --coverage` (it now requires `@vitest/coverage-v8`, which is listed in dev dependencies).
+
+The integration test (`tests/integration.test.ts`) builds synthetic DICOM byte streams (explicit Part 10 + implicit VR) and exercises `canParse`, `extractTransferSyntax`, `parseWithMetadata`, and `parseWithRadParser` against a real parsing path.
+
 ## API Reference
 
 ### `parseWithRadParser(byteArray: Uint8Array): DicomDataSet`
