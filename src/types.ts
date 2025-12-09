@@ -20,8 +20,8 @@ export interface SequenceItem {
 export interface DicomElement {
   vr?: string;
   VR?: string;
-  Value?: string | number | Array<string | number> | Record<string, unknown>;
-  value?: string | number | Array<string | number> | Record<string, unknown>;
+  Value?: string | number | Array<string | number> | Record<string, unknown> | Uint8Array;
+  value?: string | number | Array<string | number> | Record<string, unknown> | Uint8Array;
   length?: number;
   Length?: number;
   items?: unknown[];

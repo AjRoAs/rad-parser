@@ -10,7 +10,7 @@ import { SafeDataView } from './SafeDataView';
 import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './vrDetection';
 import { parseValueByVR } from './valueParsers';
 import { parseSequence } from './sequenceParser';
-import { extractPixelData } from './pixelData';
+import { extractPixelDataFromView } from './pixelData';
 import { isPrivateTag } from './dictionary';
 
 /**
@@ -379,7 +379,7 @@ export class StreamingParser {
     let value: string | number | Array<string | number> | Record<string, unknown> | undefined = undefined;
 
     if (isPixelData) {
-      const pixelDataResult = extractPixelData(view, length, this.state.transferSyntax);
+      const pixelDataResult = extractPixelDataFromView(view, length, this.state.transferSyntax);
       if (pixelDataResult) {
         value = {
           pixelData: Array.from(pixelDataResult.pixelData),

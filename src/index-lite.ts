@@ -6,14 +6,19 @@
  */
 
 export { DicomParseError, createParseError } from './errors';
+export { isCompressedTransferSyntax, type PixelDataResult } from './pixelData';
 export {
   canParse,
-  extractTransferSyntax,
   parseWithMetadata,
-  parseWithRadParser,
+  fullParse,
+  mediumParse,
+  shallowParse,
+  parseWithRadParser, // Keep for backward compatibility
   type ParseResult,
+  type ParseOptions,
+  extractPixelData
 } from './parser';
-export { extractPixelData, isCompressedTransferSyntax, type PixelDataResult } from './pixelData';
+export { extractTransferSyntax, TRANSFER_SYNTAX } from './extractTransferSyntax';
 export { SafeDataView } from './SafeDataView';
 export { parseSequence } from './sequenceParser';
 export {

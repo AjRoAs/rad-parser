@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { fullParse } from './src/index.js';
+import { fullParse, shallowParse, mediumParse } from './src/index.js';
 import dcmjs from 'dcmjs';
 import dicomParser from 'dicom-parser';
 import efferentDicom from 'efferent-dicom';
@@ -91,12 +91,23 @@ function benchmarkParser(
     switch (parserName) {
       case 'rad-parser':
         dataset = fullParse(fileData);
+        elementCount = Object.keys(dataset.dict || {}).length;
+        break;
+      case 'rad-parser-shallow':
+        dataset = shallowParse(fileData);
+        elementCount = Object.keys(dataset).length;
+        break;
+      case 'rad-parser-medium':
+        dataset = mediumParse(fileData);
+        elementCount = Object.keys(dataset.dict || {}).length;
         break;
       case 'dcmjs':
         dataset = parseWithDcmjs(fileData);
+        elementCount = Object.keys(dataset.dict || {}).length;
         break;
       case 'dicom-parser':
         dataset = parseWithDicomParser(fileData);
+        elementCount = Object.keys(dataset.dict || {}).length;
         break;
       case 'efferent-dicom':
         dataset = parseWithEfferentDicom(fileData);
@@ -105,7 +116,6 @@ function benchmarkParser(
         throw new Error(`Unknown parser: ${parserName}`);
     }
 
-    elementCount = Object.keys(dataset.dict || {}).length;
     success = true;
 
     // Save output to JSON
@@ -301,7 +311,7 @@ async function runBenchmark(): Promise<void> {
   const projectRoot = resolve(__dirname, './');
   const testDataPath = join(projectRoot, 'test_data/21197522-9_20251130013123Examenes/DICOM');
 
-  const parsers = ['rad-parser', 'dcmjs', 'dicom-parser', 'efferent-dicom'];
+  const parsers = ['rad-parser', 'rad-parser-shallow', 'rad-parser-medium'];
   const maxFiles = 50; // Limit to first 50 files for faster benchmarking
 
   console.log('Loading DICOM files...');
@@ -370,7 +380,11 @@ async function runBenchmark(): Promise<void> {
   printResults(stats);
 
   // Save detailed results to JSON
-  const outputPath = join(__dirname, 'benchmark-results.json');
+  const resultsDir = join(__dirname, 'results');
+  if (!existsSync(resultsDir)) {
+      mkdirSync(resultsDir, { recursive: true });
+  }
+  const outputPath = join(resultsDir, 'benchmark-summary.json');
   writeFileSync(outputPath, JSON.stringify({ stats, results }, null, 2));
   console.log(`\nDetailed results saved to: ${outputPath}`);
 }

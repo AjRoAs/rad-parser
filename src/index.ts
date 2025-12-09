@@ -22,10 +22,11 @@ export {
   parseWithRadParser, // Keep for backward compatibility
   type ParseResult,
   type ParseOptions,
+  extractPixelData,
 } from './parser';
 export { extractTransferSyntax, TRANSFER_SYNTAX } from './extractTransferSyntax';
 /** Pixel data utilities */
-export { extractPixelData, isCompressedTransferSyntax, type PixelDataResult } from './pixelData';
+export { isCompressedTransferSyntax, type PixelDataResult } from './pixelData';
 /** Safe byte readers and sequence helpers */
 export { SafeDataView } from './SafeDataView';
 export { parseSequence } from './sequenceParser';

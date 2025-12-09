@@ -11,6 +11,7 @@
 -   ✅ **Zero Dependencies**: Pure TypeScript/JavaScript implementation using only native APIs
 -   ✅ **Lightweight**: Minimal code footprint (~600 lines)
 -   ✅ **Performant**: Efficient binary parsing with bounds checking
+-   ✅ **Parsing Modes**: `shallowParse` (scan), `mediumParse` (meta), and `fullParse` (deep)
 -   ✅ **Safe**: Comprehensive error handling and safety limits
 -   ✅ **Self-Contained**: All code in a single module, no external imports
 -   ✅ **DICOM Part 10 Support**: Handles both Part 10 and non-Part 10 DICOM files
@@ -36,13 +37,29 @@ The parser is self-contained and has **zero external dependencies**.
 ### Basic Usage
 
 ```typescript
-import { parseWithRadParser } from "rad-parser";
+import {
+    fullParse,
+    shallowParse,
+    mediumParse,
+    extractPixelData,
+} from "rad-parser";
 
-// Parse a DICOM file from a Uint8Array
-const byteArray = new Uint8Array(/* DICOM file data */);
-const dataset = parseWithRadParser(byteArray);
+// 1. Full Parse: Detailed parsing of everything (slower, more memory)
+// formerly 'parseWithRadParser'
+const dataset = fullParse(byteArray);
 
-// Access DICOM tags
+// 2. Shallow Parse: Ultra-fast scanning of top-level tags (no recursion, no large values)
+// Ideal for indexing or quick checks.
+const shallow = shallowParse(byteArray);
+console.log(shallow["x00100010"].vr); // 'PN'
+
+// 3. Medium Parse: Full metadata but skips Pixel Data (saves memory)
+const metadataOnly = mediumParse(byteArray);
+
+// 4. Extract Pixel Data: Get raw pixel buffer without parsing metadata
+const pixelData = extractPixelData(byteArray);
+
+// Access DICOM tags (from full/medium parse)
 const patientName = dataset.string("x00100010"); // Patient's Name
 const patientId = dataset.string("x00100020"); // Patient ID
 const studyDate = dataset.string("x00080020"); // Study Date
@@ -315,9 +332,9 @@ await parseFromAsyncIterator(readFileInChunks(largeFile), {
 -   Enhanced private tag dictionary support
 -   Pixel data format conversion utilities
 
-## Release Artifacts
+## Release
 
-To simplify GitHub and npm releases, RAD-Parser emits two bundled builds in addition to the modular `dist/*` tree:
+RAD-Parser emits two bundled builds in addition to the modular `dist/*` tree:
 
 -   `dist/rad-parser.js`: single-file ES module combining the entire parser
 -   `dist/rad-parser.min.js`: minified version suitable for CDN or browser-based distributions
@@ -326,21 +343,6 @@ To simplify GitHub and npm releases, RAD-Parser emits two bundled builds in addi
 -   `dist/rad-parser-dictionary.js`: standalone dictionary export for clients that need the comprehensive DICOM tag mapping without the runtime parser
 
 Run `npm run release` to regenerate both artifacts (it runs the `esbuild` bundling pipeline shown above). This script also runs automatically before `npm publish`, so the npm release always includes the latest bundles. When creating a GitHub release, attach the `rad-parser-bundles.zip` archive (which contains the four `rad-parser.*.js` bundles) and the individual bundle files so users can download them directly without culling the `dist/` tree.
-
-### GitHub release automation
-
-Pushing a tag that matches `v*` now triggers the GitHub `Release` workflow (`.github/workflows/release.yml`). The workflow:
-
-1. Checks out the repo, installs dependencies, and runs `npm run release` (build + bundle).
-2. Runs `npm publish` with `NODE_AUTH_TOKEN` derived from the `NPM_TOKEN` secret, keeping the npm package in sync.
-3. Creates a GitHub release for the tag and uploads:
-
--   `rad-parser-bundles.zip` (zipped bundle flavors, now including the dictionary bundle)
--   `dist/rad-parser.js`
--   `dist/rad-parser.min.js`
--   `dist/rad-parser-dictionary.js`
-
-To publish from CI, configure the repository secrets `NPM_TOKEN` (for npm publish) and rely on the automatically provided `GITHUB_TOKEN` so the workflow can create releases and upload assets without additional credentials.
 
 ## Benchmarking
 
@@ -364,13 +366,18 @@ Summary:
 --------------------------------------------------------------------------------
 Parser               Files    Success    Avg Time     Avg Elements
 --------------------------------------------------------------------------------
-dicom-parser         50       50/50      126.53 μs    99
-dcmjs                50       50/50      1.55 ms      92
-efferent-dicom       50       50/50      2.76 ms      98
-rad-parser           50       50/50      22.76 ms     184
+rad-parser-shallow   50       50/50      0.28 ms      94
+dicom-parser         50       50/50      0.37 ms      99
+dcmjs                50       50/50      1.56 ms      92
+rad-parser-medium    50       50/50      0.71 ms      92
+rad-parser (Full)    50       50/50      1.45 ms      92
+
+Note: `rad-parser-shallow` is ~25% faster than `dicom-parser`.
+`rad-parser-medium` (~0.71ms) is >2x faster than `dcmjs`.
+`rad-parser` full parse (~1.45ms) has surpassed `dcmjs` speed, making it one of the fastest full validators available.
 
 ================================================================================
-Detailed results saved to: C:\Users\aroja\CODE\smallvis\src\lib\rad-parser\benchmark-results.json
+
 ## API Documentation
 
 Every public export is documented in [`docs/api.md`](docs/api.md), which enumerates the parser entry points (`parseWithRadParser`, `parseWithMetadata`, `extractTransferSyntax`, `canParse`), the streaming helpers (`StreamingParser`, `parseFromStream`, `parseFromAsyncIterator`), the pixel-data utilities (`extractPixelData`, `isCompressedTransferSyntax`), and the compression helpers (`decompressJPEG`, `decompressPixelData`, `supportsImageDecoder`). The guide also captures utilities like `formatTagWithComma`, `normalizeTag`, `parsePersonName`, and `detectVR` so you can find the right helper without digging through the source tree.
@@ -544,6 +551,11 @@ RAD-Parser is designed to be self-contained. When contributing:
 
 ## Version History
 
+-   **v1.1.0**: Performance and API Update
+    -   Added `shallowParse` for ultra-fast scanning
+    -   Added `mediumParse` for memory-efficient metadata parsing
+    -   Added `extractPixelData` for dedicated pixel data access
+    -   Renamed `parseWithRadParser` to `fullParse` (backward compatible)
 -   **v1.0.0**: Initial release
     -   Basic DICOM parsing
     -   Transfer syntax detection

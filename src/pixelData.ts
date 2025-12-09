@@ -20,7 +20,7 @@ export interface PixelDataResult {
  * Extract pixel data from DICOM element
  * Tag: (7FE0,0010) - Pixel Data
  */
-export function extractPixelData(
+export function extractPixelDataFromView(
   view: SafeDataView,
   length: number,
   transferSyntax?: string

@@ -14,11 +14,11 @@
 
 import { createParseError, DicomParseError } from './errors';
 import { isPrivateTag } from './dictionary';
-import { extractPixelData } from './pixelData';
+import { extractPixelDataFromView } from './pixelData';
 import { SafeDataView } from './SafeDataView';
 import { parseSequence } from './sequenceParser';
 import { formatTagWithComma, normalizeTag } from './tagUtils';
-import type { DicomDataSet, DicomElement, ShallowDicomDataSet } from './types';
+import type { DicomDataSet, DicomElement, ShallowDicomDataSet, PixelDataInfo } from './types';
 import { parseValueByVR } from './valueParsers';
 import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './vrDetection';
 
@@ -230,9 +230,8 @@ export function shallowParse(byteArray: Uint8Array): ShallowDicomDataSet {
       length = view.readUint32();
       headerLength = 8; // 2+2+4
       
-      // Minimal VR detection for consistency
-      const tagHex = `x${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
-      // Skip advanced VR detection in shallow parse for speed
+      // Use detectVR for better usability even in shallow parse
+      vr = detectVR(group, element) || 'UN';
     }
 
     const dataOffset = elementStart + headerLength;
@@ -305,6 +304,160 @@ export function mediumParse(byteArray: Uint8Array): DicomDataSet {
  */
 export interface ParseOptions {
   skipPixelData?: boolean;
+}
+
+/**
+ * Extract pixel data from DICOM file
+ * Scans for Pixel Data element (7FE0,0010) and returns it.
+ *
+ * @param byteArray - The DICOM file as a Uint8Array
+ * @returns PixelDataInfo or null if not found
+ */
+export function extractPixelData(byteArray: Uint8Array): PixelDataInfo | null {
+  // Ensure ArrayBuffer and SafeDataView
+  let buffer: ArrayBuffer;
+  let byteOffset = 0;
+  if (byteArray.buffer instanceof ArrayBuffer) {
+    buffer = byteArray.buffer;
+    byteOffset = byteArray.byteOffset;
+  } else {
+    buffer = new ArrayBuffer(byteArray.byteLength);
+    const newView = new Uint8Array(buffer);
+    newView.set(byteArray);
+  }
+
+  const view = new SafeDataView(buffer, byteOffset, byteArray.byteLength);
+
+  // Detect format
+  let detection: FormatDetection;
+  try {
+    detection = detectDicomFormat(view, buffer);
+  } catch {
+     return null;
+  }
+
+  view.setEndianness(detection.littleEndian);
+  view.setPosition(detection.offset);
+
+  const expectedTransferSyntax = detection.transferSyntax;
+  const explicitVR = detection.explicitVR;
+  const maxIterations = 100000;
+  let iterations = 0;
+
+  while (view.getRemainingBytes() >= 8 && iterations < maxIterations) {
+    iterations++;
+    
+    // Read tag
+    const group = view.readUint16();
+    const element = view.readUint16();
+
+     // Check for sequence/item delimiters
+    if (group === 0xfffe) {
+      if (element === 0xe0dd || element === 0xe00d || element === 0xe000) {
+        view.readUint32(); // Skip length
+        continue;
+      }
+    }
+
+    if (group === 0x7fe0 && element === 0x0010) {
+      // Found Pixel Data!
+      // Read VR and Length
+      let vr = 'OW'; // Default for implicit
+      let length: number;
+
+      if (explicitVR) {
+        const vrBytes = view.readBytes(2);
+        vr = String.fromCharCode(vrBytes[0], vrBytes[1]);
+        if (requiresExplicitLength(vr)) {
+           view.readUint16();
+           length = view.readUint32();
+        } else {
+           length = view.readUint16();
+        }
+      } else {
+         length = view.readUint32();
+      }
+
+      // Extract
+      const result = extractPixelDataFromView(view, length, expectedTransferSyntax);
+      if (result) {
+        return {
+          pixelData: result.pixelData,
+          transferSyntax: result.transferSyntax || expectedTransferSyntax,
+          isEncapsulated: result.isEncapsulated,
+          fragments: result.fragments?.map(f => {
+            // Need to return actual fragment data if requested? 
+            // PixelDataInfo in types defines fragments? 
+            // PixelDataResult has fragments as {offset, length}.
+            // PixelDataInfo has fragments as Uint8Array[].
+            // We need to implement full fragment extraction if we want to match type.
+            // For now, let's keep it simple or implement the mapping if `extractPixelDataFromView` returns meta.
+            // `extractPixelDataFromView` returns PixelDataResult (Uint8Array, isEncapsulated, fragments: {offset, length}).
+            // But PixelDataInfo wants Uint8Array[] for fragments.
+            // Wait, checking types.ts:
+            // fragments?: Uint8Array[];
+            
+            // `extractPixelDataFromView` returns { pixelData (All fragments concat), fragments: [{offset, length}] }
+            // So we can slice the pixelData if needed.
+            return result.pixelData.subarray(f.offset, f.offset + f.length);
+          })
+        };
+      }
+      return null;
+
+    } else {
+      // Skip other elements
+      // Need to read length to skip
+       let vr = 'UN';
+       let length: number;
+
+       if (explicitVR) {
+        const vrBytes = view.readBytes(2);
+        vr = String.fromCharCode(vrBytes[0], vrBytes[1]);
+        if (requiresExplicitLength(vr)) {
+           view.readUint16();
+           length = view.readUint32();
+        } else {
+           length = view.readUint16();
+        }
+      } else {
+         length = view.readUint32();
+      }
+
+      if (length === 0xffffffff) {
+         // Undefined length - skip until delimiter
+         // Danger zone again.
+         // Simplified skip for now
+         if (vr === 'SQ') {
+           // Skip sequence
+           // We can't easily skip undefined length sequence without parsing it.
+           // Since this is `extractPixelData`, we accept that we might fail on complex undefined length sequences if we don't recurse.
+           // But `mediumParse` logic handles it by recursively calling parseSequence?
+           // Here we just want to scan fast.
+           // Similar scan as shallowParse/mediumParse skip logic.
+            let skipped = 0;
+            while (view.getRemainingBytes() >= 8 && skipped < 50000000) {
+              const g = view.readUint16();
+              const e = view.readUint16();
+              if (g === 0xfffe && e === 0xe0dd) {
+                view.readUint32();
+                break;
+              }
+              view.setPosition(view.getPosition() - 4 + 2);
+              skipped += 2;
+            }
+         }
+      } else {
+         if (view.getRemainingBytes() >= length) {
+           view.setPosition(view.getPosition() + length);
+         } else {
+           break; 
+         }
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -717,18 +870,22 @@ function parseElement(
 
     const elementData: DicomElement = {
       vr: 'SQ',
-      VR: 'SQ',
       Value: sequence as unknown as Array<string | number> | Record<string, unknown>,
-      value: sequence as unknown as Array<string | number> | Record<string, unknown>,
       length: length === 0xffffffff ? undefined : length,
-      Length: length === 0xffffffff ? undefined : length,
       items: sequence as unknown[],
-      Items: sequence as unknown[],
     };
 
+    // Add compatibility properties as non-enumerable
+    Object.defineProperties(elementData, {
+      VR: { value: 'SQ', enumerable: false, writable: true },
+      value: { value: sequence, enumerable: false, writable: true },
+      Length: { value: length === 0xffffffff ? undefined : length, enumerable: false, writable: true },
+      Items: { value: sequence, enumerable: false, writable: true }
+    });
+
     return {
-      dict: { [tagHex]: elementData, [tagComma]: elementData },
-      normalizedElements: { [tagHex]: elementData, [tagComma]: elementData },
+      dict: { [tagHex]: elementData },
+      normalizedElements: { [tagHex]: elementData },
     };
   }
 
@@ -736,7 +893,7 @@ function parseElement(
   const isPixelData = group === 0x7fe0 && element === 0x0010;
 
   // Read value
-  let value: string | number | Array<string | number> | Record<string, unknown> | undefined =
+  let value: string | number | Array<string | number> | Record<string, unknown> | Uint8Array | undefined =
     undefined;
 
   if (isPixelData) {
@@ -762,12 +919,12 @@ function parseElement(
        value = undefined; 
     } else {
         // Extract pixel data (can be large) - use current view position
-        const pixelDataResult = extractPixelData(view, length, context.transferSyntax);
+        const pixelDataResult = extractPixelDataFromView(view, length, context.transferSyntax);
 
         if (pixelDataResult) {
           // Store pixel data with metadata
           value = {
-              pixelData: Array.from(pixelDataResult.pixelData),
+              pixelData: pixelDataResult.pixelData, // Keep as Uint8Array
               isEncapsulated: pixelDataResult.isEncapsulated,
               fragments: pixelDataResult.fragments,
               transferSyntax: pixelDataResult.transferSyntax,
@@ -819,18 +976,23 @@ function parseElement(
   }
 
   // Create element
+  // Create element with primary keys suitable for JSON output
   const elementData: DicomElement = {
     vr,
-    VR: vr,
     Value: value,
-    value: value,
-    length: length,
-    Length: length,
+    length,
   };
 
+  // Add compatibility properties as non-enumerable
+  Object.defineProperties(elementData, {
+    VR: { value: vr, enumerable: false, writable: true },
+    value: { value: value, enumerable: false, writable: true },
+    Length: { value: length, enumerable: false, writable: true }
+  });
+
   return {
-    dict: { [tagHex]: elementData, [tagComma]: elementData },
-    normalizedElements: { [tagHex]: elementData, [tagComma]: elementData },
+    dict: { [tagHex]: elementData },
+    normalizedElements: { [tagHex]: elementData },
   };
 }
 
@@ -842,11 +1004,11 @@ function parseElementValue(
   vr: string,
   length: number,
   characterSet: string
-): string | number | Array<string | number> | Record<string, unknown> {
+): string | number | Array<string | number> | Record<string, unknown> | Uint8Array {
   if (vr === 'OB' || vr === 'OW' || vr === 'OF' || vr === 'OD' || vr === 'OL' || vr === 'UN') {
-    // Binary data
+    // Binary data - return as Uint8Array for efficiency
     const bytes = view.readBytes(length);
-    return Array.from(bytes);
+    return bytes;
   }
 
   if (vr === 'AT') {
@@ -931,7 +1093,7 @@ function createDataSet(
     );
   };
 
-  return {
+  const dataset = {
     string: (tag: string) => {
       const elem = getElement(tag);
       if (!elem) return undefined;
@@ -1010,6 +1172,16 @@ function createDataSet(
       return undefined;
     },
     dict,
-    elements: normalizedElements,
+    elements: normalizedElements
   };
+
+  // Make 'elements' non-enumerable to prevent duplication in JSON output
+  Object.defineProperty(dataset, 'elements', {
+    value: normalizedElements,
+    enumerable: false, // Hidden from JSON.stringify
+    writable: true,
+    configurable: true
+  });
+
+  return dataset;
 }

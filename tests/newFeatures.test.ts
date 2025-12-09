@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { shallowParse, mediumParse, fullParse, extractPixelData } from '../src/index';
 
-const testFile = path.join(__dirname, 'data/test-dcm/1.2.826.0.1.3680043.8.498.13206771190697973003306825350329977051.dcm');
+const testFile = path.resolve(__dirname, '../test_data/21197522-9_20251130013123Examenes/DICOM/18CBDD76');
 
 describe('New Parser Features', () => {
     let dicomBytes: Uint8Array;
