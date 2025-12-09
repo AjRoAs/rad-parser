@@ -4,11 +4,11 @@
  * Parses sequences and nested data elements within sequences.
  */
 
-import type { DicomElement, SequenceItem } from './types';
+import type { DicomElement, SequenceItem } from '../core/types';
 import { SafeDataView } from './SafeDataView';
 import { detectVR, requiresExplicitLength } from './vrDetection';
 import { parseValueByVR } from './valueParsers';
-import { createParseError } from './errors';
+import { createParseError } from '../core/errors';
 
 /**
  * Parse a sequence item

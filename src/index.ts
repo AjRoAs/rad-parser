@@ -8,18 +8,15 @@
  */
 
 /** Compression helpers exposed by the package. */
-export { decompressJPEG, decompressPixelData, supportsImageDecoder } from './compression';
+export { decompressJPEG, decompressPixelData, supportsImageDecoder } from './utils/compression';
 /** Dictionary and tag utilities */
-export { dicomDictionary, getTagName, isPrivateTag } from './dictionary';
-export { DicomParseError, createParseError } from './errors';
+export { dicomDictionary, getTagName, isPrivateTag } from './utils/dictionary';
+export { DicomParseError, createParseError } from './core/errors';
 /** Core parser entry points */
 
 export {
   canParse,
   parseWithMetadata,
-  fullParse,
-  mediumParse,
-  shallowParse,
   parse, // Unified API
 
   type ParseResult,
@@ -27,22 +24,24 @@ export {
   type UnifiedParseOptions,
   extractPixelData,
 
-} from './parser';
-export { extractTransferSyntax, TRANSFER_SYNTAX } from './extractTransferSyntax';
+} from './core/parser';
+export { write, type WriteOptions } from './core/writer';
+export { anonymize, type AnonymizationOptions } from './core/anonymizer';
+export { extractTransferSyntax, TRANSFER_SYNTAX } from './utils/extractTransferSyntax';
 /** Pixel data utilities */
-export { isCompressedTransferSyntax, type PixelDataResult } from './pixelData';
+export { isCompressedTransferSyntax, type PixelDataResult } from './utils/pixelData';
 /** Safe byte readers and sequence helpers */
-export { SafeDataView } from './SafeDataView';
-export { parseSequence } from './sequenceParser';
+export { SafeDataView } from './utils/SafeDataView';
+export { parseSequence } from './utils/sequenceParser';
 export {
   StreamingParser,
   parseFromAsyncIterator,
   parseFromStream,
   type ElementCallback,
   type StreamingOptions,
-} from './streaming';
-export { formatTagWithComma, normalizeTag } from './tagUtils';
-export type { DicomDataSet, DicomElement, ShallowDicomDataSet, ShallowDicomElement, PixelDataInfo } from './types';
+} from './core/streaming';
+export { formatTagWithComma, normalizeTag } from './utils/tagUtils';
+export type { DicomDataSet, DicomElement, ShallowDicomDataSet, ShallowDicomElement, PixelDataInfo } from './core/types';
 export {
   parseAgeString,
   parseDate,
@@ -50,5 +49,5 @@ export {
   parsePersonName,
   parseTime,
   parseValueByVR,
-} from './valueParsers';
-export { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './vrDetection';
+} from './utils/valueParsers';
+export { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './utils/vrDetection';

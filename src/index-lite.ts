@@ -5,31 +5,28 @@
  * the bundle size small when only core parsing utilities are needed.
  */
 
-export { DicomParseError, createParseError } from './errors';
-export { isCompressedTransferSyntax, type PixelDataResult } from './pixelData';
+export { DicomParseError, createParseError } from './core/errors';
+export { isCompressedTransferSyntax, type PixelDataResult } from './utils/pixelData';
 export {
   canParse,
   parseWithMetadata,
-  fullParse,
-  mediumParse,
-  shallowParse,
 
   type ParseResult,
   type ParseOptions,
   extractPixelData
-} from './parser';
-export { extractTransferSyntax, TRANSFER_SYNTAX } from './extractTransferSyntax';
-export { SafeDataView } from './SafeDataView';
-export { parseSequence } from './sequenceParser';
+} from './core/parser';
+export { extractTransferSyntax, TRANSFER_SYNTAX } from './utils/extractTransferSyntax';
+export { SafeDataView } from './utils/SafeDataView';
+export { parseSequence } from './utils/sequenceParser';
 export {
   StreamingParser,
   parseFromAsyncIterator,
   parseFromStream,
   type ElementCallback,
   type StreamingOptions,
-} from './streaming';
-export { formatTagWithComma, normalizeTag } from './tagUtils';
-export type { DicomDataSet, DicomElement } from './types';
+} from './core/streaming';
+export { formatTagWithComma, normalizeTag } from './utils/tagUtils';
+export type { DicomDataSet, DicomElement } from './core/types';
 export {
   parseAgeString,
   parseDate,
@@ -37,5 +34,5 @@ export {
   parsePersonName,
   parseTime,
   parseValueByVR,
-} from './valueParsers';
-export { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './vrDetection';
+} from './utils/valueParsers';
+export { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './utils/vrDetection';

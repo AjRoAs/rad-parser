@@ -9,9 +9,18 @@ function runTest() {
     const fileBytes = new Uint8Array(fs.readFileSync(TEST_FILE_PATH));
     console.log('Testing Unified API...');
 
-    // 1. Default (Shallow)
-    console.log('\n--- Test 1: Default (Shallow) ---');
-    const resultDefault = parse(fileBytes);
+    // 0. Default (Full)
+    console.log('\n--- Test 0: Default (Full) ---');
+    const resultRealDefault = parse(fileBytes);
+    if ('dict' in resultRealDefault) {
+        console.log('✅ Default returned Full dataset');
+    } else {
+        console.error('❌ Default failed to return Full dataset');
+    }
+
+    // 1. Explicit Shallow
+    console.log('\n--- Test 1: Explicit Shallow ---');
+    const resultDefault = parse(fileBytes, { type: 'shallow' });
     // Check if it has dataOffset (shallow element)
     const tag = 'x00100010'; // Patient Name
     if (resultDefault[tag] && 'dataOffset' in resultDefault[tag]) {

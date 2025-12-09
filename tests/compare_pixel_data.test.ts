@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import dcmjs from 'dcmjs';
-import { fullParse } from '../src/index';
+import { parse } from '../src/index';
 
 const TEST_DIR = path.resolve(__dirname, '../test_data/patient/DICOM');
 
@@ -44,7 +44,7 @@ describe('Pixel Data Comparison with dcmjs', () => {
         // 3. Parse with rad-parser
         let radPixelData;
         try {
-             const radDataset = fullParse(new Uint8Array(arrayBuffer));
+             const radDataset = parse(new Uint8Array(arrayBuffer), { type: 'full' });
              const radPixelDataElement = radDataset.dict['x7fe00010'];
              radPixelData = radPixelDataElement?.Value;
         } catch (e) {

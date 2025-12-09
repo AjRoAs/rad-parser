@@ -1,10 +1,10 @@
 
 import { describe, it, expect } from 'vitest';
-import { fullParse } from '../src/index';
+import { parse } from '../src/index';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const TEST_DATA_DIR = path.resolve(__dirname, '../test_data/21197522-9_20251130013123Examenes/DICOM');
+const TEST_DATA_DIR = path.resolve(__dirname, '../test_data/patient/DICOM');
 
 describe('Test Data Verification', () => {
   it('should successfully parse all DICOM files in the test directory', () => {
@@ -30,7 +30,7 @@ describe('Test Data Verification', () => {
         // Convert Node Buffer to Uint8Array which is expected by the parser
         const uint8Array = new Uint8Array(buffer);
         
-        const dataset = fullParse(uint8Array);
+        const dataset = parse(uint8Array, { type: 'full' });
         
         // Basic assertion: check if we got a valid dataset object
         expect(dataset).toBeDefined();

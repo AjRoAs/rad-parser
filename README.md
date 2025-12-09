@@ -9,15 +9,12 @@
 ## Features
 
 -   ✅ **Zero Dependencies**: Pure TypeScript/JavaScript implementation using only native APIs
--   ✅ **Lightweight**: Minimal code footprint (~600 lines)
--   ✅ **Performant**: Efficient binary parsing with bounds checking
--   ✅ **Parsing Modes**: `shallowParse` (scan), `mediumParse` (meta), and `fullParse` (deep)
--   ✅ **Safe**: Comprehensive error handling and safety limits
--   ✅ **Self-Contained**: All code in a single module, no external imports
+-   ✅ **Serialization**: Write/Convert DICOM files (Explicit VR Little Endian)
+-   ✅ **Anonymization**: Built-in anonymization utilities
+-   ✅ **CLI Utility**: Command line tool for dumping, converting, and anonymizing DICOM files
+-   ✅ **Plugin System**: Extensible architecture for Codecs and Pixel Data decoding
+-   ✅ **Safe & Performant**: efficient binary parsing with bounds checking
 -   ✅ **DICOM Part 10 Support**: Handles both Part 10 and non-Part 10 DICOM files
--   ✅ **Transfer Syntax Detection**: Automatic detection of implicit/explicit VR and endianness
--   ✅ **Compatible**: Returns data structures compatible with dcmjs format
--   ✅ **Format Flexible**: Supports multiple tag formats and case variations for seamless integration
 
 ## Installation
 
@@ -25,618 +22,91 @@
 npm install rad-parser
 ```
 
-Or install from GitHub:
+## CLI Usage
+
+rad-parser comes with a built-in CLI for common operations:
 
 ```bash
-npm install github:AjRoAs/rad-parse
-```
+# Dump tags
+npx rad-parser dump file.dcm
 
-The parser is self-contained and has **zero external dependencies**.
+# Anonymize file
+npx rad-parser anonymize input.dcm output_anon.dcm
+
+# Convert/Rewrite file
+npx rad-parser convert input.dcm output_clean.dcm
+```
 
 ## Usage
 
-### Basic Usage
-
-```typescript
-import {
-    fullParse,
-    shallowParse,
-    mediumParse,
-    extractPixelData,
-} from "rad-parser";
-
-// 1. Full Parse: Detailed parsing of everything (slower, more memory)
-// formerly 'parseWithRadParser'
-const dataset = fullParse(byteArray);
-
-// 2. Shallow Parse: Ultra-fast scanning of top-level tags (no recursion, no large values)
-// Ideal for indexing or quick checks.
-const shallow = shallowParse(byteArray);
-console.log(shallow["x00100010"].vr); // 'PN'
-
-// 3. Medium Parse: Full metadata but skips Pixel Data (saves memory)
-const metadataOnly = mediumParse(byteArray);
-
-// 4. Extract Pixel Data: Get raw pixel buffer without parsing metadata
-const pixelData = extractPixelData(byteArray);
-
-// Access DICOM tags (from full/medium parse)
-const patientName = dataset.string("x00100010"); // Patient's Name
-const patientId = dataset.string("x00100020"); // Patient ID
-const studyDate = dataset.string("x00080020"); // Study Date
-```
-
-### CommonJS usage
-
-```javascript
-const { parseWithRadParser } = require("rad-parser");
-```
-
-### Tag Formats
-
-The parser supports multiple tag formats for compatibility:
-
-```typescript
-// x-prefixed format (recommended)
-dataset.string("x00100010");
-
-// Comma-separated format
-dataset.string("0010,0010");
-
-// Plain format (no prefix, no comma)
-dataset.string("00100010");
-
-// All formats work interchangeably - elements are stored in all formats
-```
-
-### Access Methods
-
-```typescript
-// String values
-const patientName = dataset.string("x00100010");
-
-// Numeric values
-const sliceThickness = dataset.floatString("x00180050");
-const rows = dataset.uint16("x00280010");
-const columns = dataset.uint16("x00280011");
-
-// Direct dictionary access
-const element = dataset.dict["x00100010"];
-console.log(element.vr); // Value Representation (lowercase)
-console.log(element.VR); // Value Representation (uppercase) - also available
-console.log(element.Value); // Value (uppercase)
-console.log(element.value); // Value (lowercase) - also available
-console.log(element.length); // Length in bytes (lowercase)
-console.log(element.Length); // Length in bytes (uppercase) - also available
-
-// Pixel Data Format
-// Uncompressed pixel data is returned as direct Uint8Array:
-if (element.vr === "OW" || element.vr === "OB") {
-    const pixelData = element.Value; // Uint8Array for uncompressed
-}
-
-// Encapsulated pixel data is returned as Array<Uint8Array>:
-if (Array.isArray(element.Value) && element.Value[0] instanceof Uint8Array) {
-    const fragments = element.Value; // Array<Uint8Array> for encapsulated
-}
-```
-
-## Architecture
-
-### Modular Structure
-
-93: RAD-Parser is organized into focused modules:
-94:
-95: 1. **SafeDataView** (`SafeDataView.ts`): Safe byte reading with bounds checking
-96: 2. **VR Detection** (`vrDetection.ts`): Implicit VR detection using optimized Map lookups
-97: 3. **Value Parsers** (`valueParsers.ts`): Specialized parsers for PN, DA, TM, DT, AS VR types
-98: 4. **Sequence Parser** (`sequenceParser.ts`): Full sequence (SQ) parsing with nested items and structural validation
-99: 5. **Transfer Syntax** (`extractTransferSyntax.ts`): Optimized transfer syntax extraction
-100: 6. **Dictionary** (`dictionary.ts`): DICOM tag dictionary integration
-101: 7. **Tag Utils** (`tagUtils.ts`): Tag format normalization utilities
-102: 8. **Parser** (`parser.ts`): Main parser orchestrating all modules with standardized error handling
-103: 9. **Types** (`types.ts`): TypeScript type definitions
-
-### Core Components
-
-1. **SafeDataView**: A wrapper around `DataView` that provides safe byte reading with bounds checking
-2. **Transfer Syntax Detection**: Automatically detects and handles different DICOM transfer syntaxes
-3. **Tag Normalization**: Converts tags between different formats for compatibility
-4. **Value Parsing**: Handles different VR (Value Representation) types appropriately
-5. **Sequence Parsing**: Full support for nested sequences and items
-6. **Character Set Handling**: Automatic detection and application of DICOM character sets
-
-### Supported Transfer Syntaxes
-
--   **Implicit VR Little Endian** (`1.2.840.10008.1.2`)
--   **Explicit VR Little Endian** (`1.2.840.10008.1.2.1`) - Default
--   **Explicit VR Big Endian** (`1.2.840.10008.1.2.2`)
-
-### Supported VR Types
-
-The parser handles all common DICOM VR types:
-
--   **String Types**: AE, AS, CS, DA, DS, DT, IS, LO, LT, PN, SH, ST, TM, UI, UT, UC, UR
--   **Numeric Types**: SS, US, SL, UL, FL, FD, DS, IS
--   **Binary Types**: OB, OW, OF, OD, OL, UN
--   **Special Types**: AT (Attribute Tag), SQ (Sequence)
-
-## Safety Features
-
-### Bounds Checking
-
-All read operations check buffer bounds before accessing data:
-
-```typescript
-readUint16(): number {
-  if (this.offset + 2 > this.view.byteLength) {
-    throw new Error('Read beyond buffer');
-  }
-  // ... safe read
-}
-```
-
-### Safety Limits
-
--   **Maximum iterations**: 10,000 elements per file (prevents infinite loops)
--   **Maximum value size**: 1MB per element (prevents memory exhaustion)
--   **Meta information limit**: 20 elements (prevents excessive scanning)
-
-### Error Handling
-
-The parser gracefully handles:
-
--   Invalid file formats
--   Corrupted data
--   Missing transfer syntax information
--   Unexpected end of file
-
-## Performance
-
-RAD-Parser is optimized for performance:
-
--   **Single-pass parsing**: Reads through the file once
--   **Efficient memory usage**: Uses views instead of copying data
--   **Minimal allocations**: Reuses buffers where possible
--   **Fast tag lookup**: Multiple format support without performance penalty
-
-## Feature Comparison
-
-### ✅ Implemented Features
-
--   **Sequence Parsing**: Full support for DICOM sequences (SQ VR) with nested items
--   **Implicit VR Detection**: Automatic VR detection for implicit transfer syntax files
--   **Person Name Parsing**: Structured parsing of PN VR with Alphanumeric, Ideographic, and Phonetic components
--   **Date/Time Parsing**: Automatic conversion of DA, TM, and DT VR to Date objects
--   **Age String Parsing**: Structured parsing of AS VR (e.g., "012Y" → {value: 12, unit: 'Y'})
--   **Character Set Support**: Handles multiple character sets (UTF-8, Latin-1, ISO_IR 100, etc.)
--   **Tag Dictionary**: Full DICOM tag dictionary integration for tag name lookup
--   **Transfer Syntax Detection**: Automatic detection and handling of all common transfer syntaxes
--   **Modular Architecture**: Clean separation of concerns with dedicated modules
-
-## Comparison with Other DICOM Parsers
-
-| Feature                       | rad-parser              | dcmjs              | dicom-parser         | efferent-dicom         |
-| ----------------------------- | ----------------------- | ------------------ | -------------------- | ---------------------- |
-| **Dependencies**              | ✅ Zero                 | ❌ Multiple        | ❌ Multiple          | ❌ Multiple            |
-| **Bundle Size**               | ✅ ~50KB                | ⚠️ ~500KB+         | ⚠️ ~200KB+           | ⚠️ ~300KB+             |
-| **Self-Contained**            | ✅ Yes                  | ❌ No              | ❌ No                | ❌ No                  |
-| **Part 10 Support**           | ✅ Yes                  | ✅ Yes             | ✅ Yes               | ✅ Yes                 |
-| **Transfer Syntax Detection** | ✅ Yes                  | ✅ Yes             | ✅ Yes               | ✅ Yes                 |
-| **Implicit VR**               | ✅ Yes                  | ✅ Yes             | ✅ Yes               | ⚠️ Limited             |
-| **Explicit VR**               | ✅ Yes                  | ✅ Yes             | ✅ Yes               | ✅ Yes                 |
-| **Big Endian**                | ✅ Yes                  | ✅ Yes             | ✅ Yes               | ⚠️ Limited             |
-| **Sequence Parsing**          | ✅ Yes                  | ✅ Yes             | ⚠️ Basic             | ⚠️ Basic               |
-| **Person Name (PN)**          | ✅ Structured           | ✅ Structured      | ⚠️ String only       | ⚠️ String only         |
-| **Date/Time Parsing**         | ✅ Date objects         | ⚠️ Strings         | ⚠️ Strings           | ⚠️ Strings             |
-| **Character Sets**            | ✅ Multiple             | ✅ Multiple        | ⚠️ Limited           | ⚠️ Limited             |
-| **Tag Dictionary**            | ✅ Full (5300+ tags)    | ⚠️ Partial         | ❌ No                | ❌ No                  |
-| **Error Handling**            | ✅ Comprehensive        | ✅ Good            | ⚠️ Basic             | ⚠️ Basic               |
-| **Safety Limits**             | ✅ Yes                  | ⚠️ Limited         | ⚠️ Limited           | ⚠️ Limited             |
-| **Bounds Checking**           | ✅ All operations       | ⚠️ Some            | ⚠️ Some              | ⚠️ Some                |
-| **Modular**                   | ✅ Yes                  | ❌ Monolithic      | ❌ Monolithic        | ❌ Monolithic          |
-| **TypeScript**                | ✅ Full types           | ⚠️ Partial         | ⚠️ Partial           | ⚠️ Partial             |
-| **Performance**               | ✅ Fast (~1.05-6.60 ms) | ✅ Fast (~1.55 ms) | ✅ Fastest (~126 μs) | ⚠️ Moderate (~2.76 ms) |
-| **Memory Usage**              | ✅ Low                  | ⚠️ Medium          | ✅ Low               | ⚠️ Medium              |
-| **Pixel Data**                | ✅ Full                 | ✅ Full            | ✅ Full              | ✅ Full                |
-| **RLE Compression**           | ✅ Yes                  | ✅ Yes             | ✅ Yes               | ⚠️ Limited             |
-| **JPEG Compression**          | ⚠️ Browser API          | ✅ Yes             | ✅ Yes               | ⚠️ Limited             |
-| **Private Tags**              | ✅ Enhanced detection   | ✅ Dictionary      | ⚠️ Basic             | ⚠️ Basic               |
-| **Browser Support**           | ✅ All modern           | ✅ All modern      | ✅ All modern        | ⚠️ Modern only         |
-| **Node.js Support**           | ✅ Yes                  | ✅ Yes             | ✅ Yes               | ✅ Yes                 |
-| **Maintenance**               | ✅ Active               | ✅ Active          | ⚠️ Slow              | ⚠️ Slow                |
-| **License**                   | ✅ MIT                  | ✅ MIT             | ✅ MIT               | ✅ MIT                 |
-
-### Legend
-
--   ✅ **Full Support**: Feature is fully implemented and working
--   ⚠️ **Partial/Limited**: Feature exists but with limitations
--   ❌ **Not Available**: Feature is not supported
-
-### Key Advantages of rad-parser
-
-1. **Zero Dependencies**: No external libraries required - truly self-contained
-2. **Small Bundle Size**: Significantly smaller than alternatives
-3. **Modular Design**: Clean architecture with focused modules
-4. **Full Tag Dictionary**: Complete DICOM tag dictionary (5300+ tags)
-5. **Enhanced Parsing**: Structured Person Name, Date/Time objects, Age strings
-6. **Safety First**: Comprehensive bounds checking and safety limits
-7. **TypeScript Native**: Built from the ground up with TypeScript
-
-### When to Use rad-parser
-
-**Choose rad-parser when:**
-
--   You need a lightweight, zero-dependency solution
--   Bundle size is critical
--   You want structured data (PN, DA, TM, DT, AS)
--   You need full tag dictionary lookup
--   You prioritize safety and bounds checking
--   You want a modular, maintainable codebase
-
-**Consider alternatives when:**
-
--   You need JPEG-LS or JPEG 2000 decompression (use dcmjs)
--   You need maximum compatibility with legacy systems (use dicom-parser)
-
-### Current Features
-
--   **Pixel Data Extraction**: ✅ Full support for native and encapsulated pixel data
--   **RLE Compression**: ✅ RLE (Run-Length Encoding) lossless decompression
--   **Private Tags**: ✅ Enhanced VR detection for private tags based on length patterns
--   **JPEG Support**: ⚠️ Requires browser ImageDecoder API or external library
-
-### Current Limitations
-
--   **JPEG Compression**: JPEG decompression requires browser ImageDecoder API (Chrome 94+) or external library
--   **JPEG-LS/JPEG 2000**: Not yet implemented (would require external libraries)
--   **Private Tags**: VR detection uses heuristics - may not always be accurate for vendor-specific tags
-
-### Streaming Support
-
-RAD-Parser supports streaming parsing for very large files:
-
-```typescript
-import { StreamingParser, parseFromStream } from "@/lib/rad-parser";
-
-// Using StreamingParser directly
-const parser = new StreamingParser({
-    onElement: (element) => {
-        // Process each element as it's parsed
-        console.log("Parsed element:", element);
-    },
-    onError: (error) => {
-        console.error("Parse error:", error);
-    },
-    maxBufferSize: 10 * 1024 * 1024, // 10MB
-    maxIterations: 1000, // Elements per chunk
-});
-
-parser.initialize(firstChunk);
-parser.processChunk(chunk2);
-parser.processChunk(chunk3);
-parser.finalize();
-
-// Using ReadableStream
-const response = await fetch("/large-dicom-file.dcm");
-const stream = response.body!;
-await parseFromStream(stream, {
-    onElement: (element) => {
-        // Process elements incrementally
-    },
-});
-
-// Using async iterator
-async function* readFileInChunks(file: File) {
-    const chunkSize = 64 * 1024; // 64KB chunks
-    let offset = 0;
-    while (offset < file.size) {
-        const chunk = file.slice(offset, offset + chunkSize);
-        yield new Uint8Array(await chunk.arrayBuffer());
-        offset += chunkSize;
-    }
-}
-
-await parseFromAsyncIterator(readFileInChunks(largeFile), {
-    onElement: (element) => {
-        // Process elements as file is read
-    },
-});
-```
-
-### Future Enhancements
-
--   JPEG-LS and JPEG 2000 support (with external libraries)
--   Enhanced private tag dictionary support
--   Pixel data format conversion utilities
-
-## Release
-
-RAD-Parser emits two bundled builds in addition to the modular `dist/*` tree:
-
--   `dist/rad-parser.js`: single-file ES module combining the entire parser
--   `dist/rad-parser.min.js`: minified version suitable for CDN or browser-based distributions
--   `dist/rad-parser-nodict.js`: dictionary-free build that packs only the runtime parser utilities, streaming helpers, and pixel-data helpers (ideal for clients that already resolve tag names elsewhere)
--   `dist/rad-parser-nodict.min.js`: minified version of the dictionary-free build
--   `dist/rad-parser-dictionary.js`: standalone dictionary export for clients that need the comprehensive DICOM tag mapping without the runtime parser
-
-Run `npm run release` to regenerate both artifacts (it runs the `esbuild` bundling pipeline shown above). This script also runs automatically before `npm publish`, so the npm release always includes the latest bundles. When creating a GitHub release, attach the `rad-parser-bundles.zip` archive (which contains the four `rad-parser.*.js` bundles) and the individual bundle files so users can download them directly without culling the `dist/` tree.
-
-## Benchmarking
-
-Run `npm run benchmark` to compare rad-parser performance across different parsing modes using the shared DICOM files under `test_data/patient/DICOM`. The script exercises each parser mode on the same 50 files, tracks parse time/success/element count, and writes a JSON report to `results/benchmark-summary.json` so you can inspect the raw measurements.
-
-### Latest Benchmark Results (v1.1.1)
-
-Benchmark run on 50 DICOM files (average file size: 548 KB):
-
-================================================================================
-DICOM Parser Benchmark Results
-================================================================================
-
-## Summary:
-
-## Parser Files Success Avg Time Min Time Max Time Avg Elements
-
-rad-parser-shallow 50 50/50 0.70 ms 0.53 ms 1.37 ms 94  
-rad-parser-medium 50 50/50 2.11 ms 1.72 ms 4.81 ms 276  
-rad-parser 50 50/50 3.20 ms 1.99 ms 8.77 ms 276
-
-## Performance Comparison (relative to fastest):
-
-rad-parser-shallow 1.00x ██████████ 0.70 ms
-rad-parser-medium 3.01x ██████████████████████████████ 2.11 ms
-rad-parser 4.57x ██████████████████████████████████████████████ 3.20 ms
-
-================================================================================
-
--   **rad-parser-shallow**: Ultra-fast scanning mode (~0.88 ms average) - perfect for indexing or quick tag lookups without parsing values. Detects 94 elements per file.
--   **rad-parser-medium**: Memory-efficient mode (~2.31 ms average) - parses all metadata but skips pixel data, detecting 276 elements vs 94 in shallow mode. Ideal for metadata extraction without pixel data overhead.
--   **rad-parser**: Full deep parsing mode (~2.95 ms average) - complete recursive parsing of sequences with structural validation, detecting 276 elements. Ensures complete structural integrity.
-
-**Key Insights:**
-
--   Shallow parsing is ~6x faster than full parsing, ideal for quick metadata extraction
--   Medium parsing provides a good balance, detecting all metadata elements while avoiding pixel data memory overhead
--   Full parsing performs deep recursive validation, ensuring complete structural integrity
--   All modes successfully parse 100% of test files with zero errors
--   Average file size: 548 KB (26.76 MB total across 50 files)
-
-## API Documentation
-
-Every public export is documented in [`docs/api.md`](docs/api.md), which enumerates the parser entry points (`parseWithRadParser`, `parseWithMetadata`, `extractTransferSyntax`, `canParse`), the streaming helpers (`StreamingParser`, `parseFromStream`, `parseFromAsyncIterator`), the pixel-data utilities (`extractPixelData`, `isCompressedTransferSyntax`), and the compression helpers (`decompressJPEG`, `decompressPixelData`, `supportsImageDecoder`). The guide also captures utilities like `formatTagWithComma`, `normalizeTag`, `parsePersonName`, and `detectVR` so you can find the right helper without digging through the source tree.
-
-## Documentation & Wiki
-
-Extended documentation lives under `docs/` (see `docs/api.md`) and is mirrored in the GitHub wiki. When you update the README or introduce new modules, be sure to:
-
-1. Update `docs/api.md` with any new exports so the reference stays fresh.
-   **Parameters:**
-
--   `byteArray`: The DICOM file as a `Uint8Array`
-
-**Returns:**
-
--   `ParseResult`: Object containing `dataset`, `transferSyntax`, and `characterSet`
-
-### `extractTransferSyntax(byteArray: Uint8Array): string | undefined`
-
-Quickly extracts transfer syntax UID from a DICOM file without full parsing.
-
-**Parameters:**
-
--   `byteArray`: The DICOM file as a `Uint8Array`
-
-**Returns:**
-
--   `string | undefined`: Transfer syntax UID or undefined if not found
-
-**Example:**
-
-```typescript
-const transferSyntax = extractTransferSyntax(dicomBytes);
-if (transferSyntax === "1.2.840.10008.1.2.5") {
-    console.log("RLE compressed");
-}
-```
-
-### `canParse(byteArray: Uint8Array): boolean`
-
-Checks if a byte array appears to be a valid DICOM file.
-
-**Parameters:**
-
--   `byteArray`: The file data as a `Uint8Array`
-
-**Returns:**
-
--   `boolean`: True if file appears to be valid DICOM
-
-**Example:**
-
-```typescript
-if (canParse(fileBytes)) {
-    const dataset = parse(fileBytes);
-}
-```
-
-### `DicomDataSet` Interface
-
-```typescript
-interface DicomDataSet {
-    // Access methods
-    string(tag: string): string | undefined;
-    uint16(tag: string): number | undefined;
-    int16(tag: string): number | undefined;
-    floatString(tag: string): number | undefined;
-    intString(tag: string): number | undefined;
-
-    // Direct access
-    dict: Record<string, DicomElement>;
-    elements: Record<string, DicomElement>;
-}
-```
-
-## Examples
-
-### Reading Patient Information
+### Parsing
 
 ```typescript
 import { parse } from "rad-parser";
 
-const dataset = parse(dicomBytes);
-// or with options: parse(dicomBytes, { type: 'full' });
-
-const patientInfo = {
-    name: dataset.string("x00100010"),
-    id: dataset.string("x00100020"),
-    birthDate: dataset.string("x00100030"),
-    sex: dataset.string("x00100040"),
-};
-
-console.log("Patient:", patientInfo);
-```
-
-### Reading Study Information
-
-```typescript
-const studyInfo = {
-    studyDate: dataset.string("x00080020"),
-    studyTime: dataset.string("x00080030"),
-    studyDescription: dataset.string("x00081030"),
-    studyInstanceUID: dataset.string("x0020000D"),
-};
-
-console.log("Study:", studyInfo);
-```
-
-### Reading Image Properties
-
-```typescript
-const imageInfo = {
-    rows: dataset.uint16("x00280010"),
-    columns: dataset.uint16("x00280011"),
-    bitsAllocated: dataset.uint16("x00280100"),
-    bitsStored: dataset.uint16("x00280101"),
-    pixelSpacing: dataset.string("x00280030"),
-    sliceThickness: dataset.floatString("x00180050"),
-};
-
-console.log("Image:", imageInfo);
-```
-
-## Compatibility Features (v1.1.1+)
-
-### Case-Insensitive Element Access
-
-All elements export both uppercase and lowercase property keys for maximum compatibility:
-
-```typescript
-const element = dataset.dict["x00100010"];
-
-// All of these work:
-element.vr === element.VR; // true
-element.value === element.Value; // true
-element.length === element.Length; // true
-element.items === element.Items; // true (for sequences)
-```
-
-### Multiple Tag Format Support
-
-Elements are stored under all common tag formats for seamless access:
-
-```typescript
-// All of these access the same element:
-dataset.string("x00100010"); // x-prefixed (recommended)
-dataset.string("0010,0010"); // comma-separated
-dataset.string("00100010"); // plain format
-
-// Works with both dict and elements:
-dataset.dict["x00100010"] === dataset.dict["0010,0010"]; // true
-dataset.elements["x00100010"] === dataset.elements["00100010"]; // true
-```
-
-### Pixel Data Format
-
-Pixel data follows standard DICOM parser conventions:
-
-```typescript
-const pixelElement = dataset.dict["x7fe00010"];
-
-if (pixelElement.vr === "OW" || pixelElement.vr === "OB") {
-    // Uncompressed: Direct Uint8Array
-    if (pixelElement.Value instanceof Uint8Array) {
-        const pixelData = pixelElement.Value; // Uint8Array
-    }
-
-    // Encapsulated: Array<Uint8Array> (fragments)
-    if (
-        Array.isArray(pixelElement.Value) &&
-        pixelElement.Value[0] instanceof Uint8Array
-    ) {
-        const fragments = pixelElement.Value; // Array<Uint8Array>
-        // Each fragment is a Uint8Array
-    }
-}
-```
-
-### Filtering Elements (New in v1.2.0)
-
-You can filter which tags to parse using the `tags` option with the unified `parse()` function:
-
-```typescript
-import { parse } from "rad-parser";
-
-// Filter tags using any parse type (shallow, full, lazy, light)
-const result = parse(byteArray, {
-    type: "shallow",
-    tags: ["x00100010", "x0020000D"], // Only PatientName and StudyInstanceUID
-});
-```
-
-These improvements ensure seamless integration with existing DICOM processing codebases.
-
-## Integration with SmallVis
-
-RAD-Parser is integrated into SmallVis's parser system:
-
-```typescript
-import { parse } from "rad-parser";
-
-// Use rad-parser specifically
 const dataset = parse(byteArray);
 
-// Or let the system choose (rad-parser is available as an option)
+// string access
+const name = dataset.string("x00100010");
+
+// direct element access
+const element = dataset.dict["x00100010"];
+console.log(element.Value);
 ```
 
-## License
+### Anonymization
 
-This parser is part of the SmallVis project and follows the same license terms.
+```typescript
+import { parse, anonymize, write } from "rad-parser";
+
+const dataset = parse(inputBytes);
+
+// Anonymize (default rules)
+const anonDataset = anonymize(dataset);
+
+// Custom rules
+const customAnon = anonymize(dataset, {
+    replacements: {
+        x00100010: "JOHN^DOE",
+    },
+});
+
+// Write to buffer
+const outputBytes = write(customAnon);
+```
+
+### Serialization (Writer)
+
+```typescript
+import { write } from "rad-parser";
+
+// Serialize dataset to Uint8Array (Part 10 format)
+const bytes = write(dataset);
+```
+
+## Architecture (v2.0.0)
+
+The project is organized into core components:
+
+-   `src/core`: Main logic (parser, writer, anonymizer).
+-   `src/utils`: Helper functions (tag utils, dictionary, validation).
+-   `src/plugins`: Interface for extensions (codecs, WebGPU).
 
 ## Contributing
 
 RAD-Parser is designed to be self-contained. When contributing:
 
-1. Keep it dependency-free
-2. Maintain safety checks
-3. Add tests for new features
-4. Update this README with new capabilities
+1. Keep it dependency-free (core).
+2. Extensions (codecs) should use the Plugin system.
+3. Maintain safety checks.
 
 ## Version History
 
--   **v1.1.1**: Compatibility and Format Improvements
-    -   **Case Sensitivity**: Elements now export both uppercase and lowercase keys (`vr`/`VR`, `value`/`Value`, `length`/`Length`, `items`/`Items`) as enumerable properties for maximum compatibility
-    -   **Tag Format Consistency**: Elements are now stored under all common tag formats (x-prefixed, comma-separated, plain) in both `dict` and `elements` for seamless access
-    -   **Pixel Data Format**: Pixel data is now exported as direct `Uint8Array` (uncompressed) or `Array<Uint8Array>` (encapsulated) instead of object wrapper, matching dcmjs and dicom-parser formats
-    -   **Improved Accessor Methods**: Accessor methods (`string()`, `uint16()`, etc.) now handle all tag format variations consistently
-    -   **Type Definitions**: Updated TypeScript types to match expected SmallVis interface
--   **v1.1.0**: Performance and API Update
-    -   Added `shallowParse` for ultra-fast scanning
-    -   Added `mediumParse` for memory-efficient metadata parsing
-    -   Added `extractPixelData` for dedicated pixel data access
-    -   Renamed `parseWithRadParser` to `fullParse` (backward compatible)
--   **v1.0.0**: Initial release
-    -   Basic DICOM parsing
-    -   Transfer syntax detection
-    -   Multiple tag format support
-    -   Safety features
+-   **v2.0.0**: Major Release
+    -   **Serialization**: Added DICOM Writer.
+    -   **Anonymization**: Added `anonymize()` function.
+    -   **CLI**: Added `rad-parser` CLI.
+    -   **Architecture**: Refactored into modular `core`/`utils`/`plugins` structure.
+    -   **Plugin Support**: Added hooks for external pixel data decoders.
+-   **v1.1.1**: Compatibility Updates
+-   **v1.0.0**: Initial Release

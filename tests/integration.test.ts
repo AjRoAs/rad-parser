@@ -3,8 +3,8 @@ import {
   canParse,
   extractTransferSyntax,
   parseWithMetadata,
-  parseWithRadParser,
-} from '../src/parser';
+  parse,
+} from '../src/index';
 
 const encoder = new TextEncoder();
 
@@ -104,7 +104,7 @@ describe('integration', () => {
 
   it('parses an implicit VR little-endian dataset', () => {
     const bytes = createImplicitDicom('DOE^PATIENT');
-    const dataset = parseWithRadParser(bytes);
+    const dataset = parse(bytes);
     expect(dataset.string('x00100010')).toBe('DOE^PATIENT');
   });
 });

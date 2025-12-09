@@ -6,12 +6,12 @@
  */
 
 import type { DicomElement } from './types';
-import { SafeDataView } from './SafeDataView';
-import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './vrDetection';
-import { parseValueByVR } from './valueParsers';
-import { parseSequence } from './sequenceParser';
-import { extractPixelDataFromView } from './pixelData';
-import { isPrivateTag } from './dictionary';
+import { SafeDataView } from '../utils/SafeDataView';
+import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from '../utils/vrDetection';
+import { parseValueByVR } from '../utils/valueParsers';
+import { parseSequence } from '../utils/sequenceParser';
+import { extractPixelDataFromView } from '../utils/pixelData';
+import { isPrivateTag } from '../utils/dictionary';
 
 /**
  * Streaming parser state

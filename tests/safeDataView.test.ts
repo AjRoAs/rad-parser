@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SafeDataView } from '../src/SafeDataView';
+import { SafeDataView } from '../src/utils/SafeDataView';
 
 describe('SafeDataView', () => {
   it('reads little-endian integers and enforces bounds', () => {

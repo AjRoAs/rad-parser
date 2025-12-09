@@ -2,9 +2,9 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { shallowParse, mediumParse, fullParse, extractPixelData } from '../src/index';
+import { parse, extractPixelData } from '../src/index';
 
-const testFile = path.resolve(__dirname, '../test_data/21197522-9_20251130013123Examenes/DICOM/18CBDD76');
+const testFile = path.resolve(__dirname, '../test_data/patient/DICOM/18CBDD76');
 
 describe('New Parser Features', () => {
     let dicomBytes: Uint8Array;
@@ -22,7 +22,7 @@ describe('New Parser Features', () => {
 
     it('shallowParse should return a map of tags without values', () => {
         loadDicom();
-        const result = shallowParse(dicomBytes);
+        const result = parse(dicomBytes, { type: 'shallow' });
         
         expect(result).toBeDefined();
         // Check for specific tag (e.g. PatientName 0010,0010)
@@ -37,7 +37,7 @@ describe('New Parser Features', () => {
 
     it('mediumParse should parse everything but skip PixelData value', () => {
         loadDicom();
-        const dataset = mediumParse(dicomBytes);
+        const dataset = parse(dicomBytes, { type: 'light' });
         
         expect(dataset).toBeDefined();
         expect(dataset.string('0010,0010')).toBeDefined(); // PatientName

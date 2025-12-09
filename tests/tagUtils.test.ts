@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatTagWithComma, normalizeTag } from '../src/tagUtils';
+import { formatTagWithComma, normalizeTag } from '../src/utils/tagUtils';
 
 describe('tag utilities', () => {
   it('normalizes tags into x-prefixed format', () => {

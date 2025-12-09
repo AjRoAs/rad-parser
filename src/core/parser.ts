@@ -13,14 +13,14 @@
  */
 
 import { createParseError, DicomParseError } from './errors';
-import { isPrivateTag } from './dictionary';
-import { extractPixelDataFromView } from './pixelData';
-import { SafeDataView } from './SafeDataView';
-import { parseSequence } from './sequenceParser';
-import { formatTagWithComma, normalizeTag } from './tagUtils';
+import { isPrivateTag } from '../utils/dictionary';
+import { extractPixelDataFromView } from '../utils/pixelData';
+import { SafeDataView } from '../utils/SafeDataView';
+import { parseSequence } from '../utils/sequenceParser';
+import { formatTagWithComma, normalizeTag } from '../utils/tagUtils';
 import type { DicomDataSet, DicomElement, ShallowDicomDataSet, PixelDataInfo } from './types';
-import { parseValueByVR } from './valueParsers';
-import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './vrDetection';
+import { parseValueByVR } from '../utils/valueParsers';
+import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from '../utils/vrDetection';
 
 /**
  * Transfer syntax constants
@@ -112,32 +112,6 @@ export function canParse(byteArray: Uint8Array): boolean {
   }
 }
 
-/**
- * Parse DICOM file using rad-parser
- * @deprecated Use `parse(byteArray, { type: 'full' })` instead.
- *
- * @param byteArray - The DICOM file as a Uint8Array
- * @returns A DicomDataSet compatible with the SmallVis parser system
- */
-export function fullParse(byteArray: Uint8Array): DicomDataSet {
-  try {
-    const result = parseWithMetadata(byteArray);
-    if (!result || !result.dataset) {
-      throw createParseError('parseWithMetadata returned invalid result');
-    }
-    return result.dataset;
-  } catch (error) {
-    // Re-throw if it's already a DicomParseError to preserve context
-    if (error instanceof DicomParseError) {
-      throw error;
-    }
-    // Re-throw with more context
-    if (error instanceof Error) {
-      throw createParseError(`rad-parser failed: ${error.message}`, undefined, undefined, error);
-    }
-    throw createParseError('rad-parser failed: Unknown error');
-  }
-}
 
 /**
  * @deprecated Use fullParse instead
@@ -154,21 +128,7 @@ export function fullParse(byteArray: Uint8Array): DicomDataSet {
  * @param byteArray - The DICOM file as a Uint8Array
  * @returns A DicomDataSet
  */
-export function mediumParse(byteArray: Uint8Array): DicomDataSet {
-  try {
-    const result = parseWithMetadata(byteArray, { skipPixelData: true });
-    if (!result || !result.dataset) {
-      throw createParseError('parseWithMetadata returned invalid result');
-    }
-    return result.dataset;
-  } catch (error) {
-    if (error instanceof DicomParseError) throw error;
-    if (error instanceof Error) {
-      throw createParseError(`mediumParse failed: ${error.message}`, undefined, undefined, error);
-    }
-    throw createParseError('mediumParse failed: Unknown error');
-  }
-}
+
 
 
 
@@ -183,6 +143,11 @@ export interface ParseOptions {
    * Note: This filters at the root level.
    */
   filterTags?: string[];
+  /**
+   * Custom plugin to decode pixel data.
+   * If provided, this function is called when Pixel Data (7FE0,0010) is encountered.
+   */
+  pixelDataPlugin?: (element: DicomElement, transferSyntax: string) => unknown;
 }
 
 /**
@@ -238,7 +203,8 @@ export function parseWithMetadata(byteArray: Uint8Array, options: ParseOptions =
     characterSet: characterSet,
     transferSyntax: detection.transferSyntax,
     skipPixelData: options.skipPixelData,
-    filterTags: options.filterTags ? new Set(options.filterTags.map(t => normalizeTag(t))) : undefined
+    filterTags: options.filterTags ? new Set(options.filterTags.map(t => normalizeTag(t))) : undefined,
+    pixelDataPlugin: options.pixelDataPlugin
   };
 
   let dict: Record<string, DicomElement>;
@@ -461,6 +427,7 @@ interface ParseContext {
   transferSyntax?: string;
   skipPixelData?: boolean;
   filterTags?: Set<string>;
+  pixelDataPlugin?: (element: DicomElement, transferSyntax: string) => unknown;
 }
 
 /**
@@ -644,6 +611,7 @@ function parseElement(
 
   if (isPixelData) {
     if (context.skipPixelData) {
+       // ... (skip logic) 
        if (length === 0xffffffff) {
           let skipped = 0;
           while (view.getRemainingBytes() >= 8 && skipped < 100000000) {
@@ -669,6 +637,7 @@ function parseElement(
             value = pixelDataResult.pixelData;
           }
         } else {
+           // ... (fallback skip)
           if (length === 0xffffffff) {
               let skipped = 0;
               while (view.getRemainingBytes() >= 8 && skipped < 1000000) {
@@ -711,6 +680,19 @@ function parseElement(
   };
   if (elementData.items === undefined) { elementData.items = undefined; elementData.Items = undefined; }
 
+  // Plugin Hook: If this is pixel data and we have a plugin, call it!
+  if (isPixelData && context.pixelDataPlugin && !context.skipPixelData) {
+      try {
+        const decoded = context.pixelDataPlugin(elementData, context.transferSyntax || '');
+        if (decoded !== undefined) {
+             elementData.Value = decoded as any;
+             elementData.value = decoded as any;
+        }
+      } catch (e) {
+          // Log or ignore? For now ignore and leave original value (compressed)
+      }
+  }
+
   return {
     dict: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
     normalizedElements: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
@@ -745,6 +727,11 @@ export interface UnifiedParseOptions {
    */
   tags?: string | string[];
 
+  /**
+   * Custom plugin to decode pixel data.
+   */
+  pixelDataPlugin?: (element: DicomElement, transferSyntax: string) => unknown;
+
   // Deprecated options removed (customTags, tag)
 }
 
@@ -755,7 +742,7 @@ export interface UnifiedParseOptions {
  * @param options - Configuration options
  */
 export function parse(byteArray: Uint8Array, options: UnifiedParseOptions = {}): DicomDataSet | ShallowDicomDataSet {
-  const mode = options.type || 'shallow';
+  const mode = options.type || 'full';
 
   // Normalize tags
   let filterTags: string[] | undefined;
@@ -777,7 +764,8 @@ export function parse(byteArray: Uint8Array, options: UnifiedParseOptions = {}):
     case 'light':
       const parseOpts: ParseOptions = {
         skipPixelData: mode === 'light',
-        filterTags: filterTags // We need to add this to ParseOptions!
+        filterTags: filterTags, // We need to add this to ParseOptions!
+        pixelDataPlugin: options.pixelDataPlugin
       };
       // We can call parseWithMetadata directly
       const res = parseWithMetadata(byteArray, parseOpts);
@@ -908,7 +896,7 @@ function createLazyDataSet(byteArray: Uint8Array, filterTags?: string[]): DicomD
  * @param filterTags - Optional array of tags to include
  * @returns A ShallowDicomDataSet map
  */
-export function shallowParse(byteArray: Uint8Array, filterTags?: string[]): ShallowDicomDataSet {
+function shallowParse(byteArray: Uint8Array, filterTags?: string[]): ShallowDicomDataSet {
   let buffer: ArrayBuffer;
   let byteOffset = 0;
   if (byteArray.buffer instanceof ArrayBuffer) {

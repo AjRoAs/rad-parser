@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from '../src/vrDetection';
+import { detectVR, detectVRForPrivateTag, requiresExplicitLength } from '../src/utils/vrDetection';
 
 describe('vrDetection helpers', () => {
   it('detects explicit VRs for well-known tags', () => {

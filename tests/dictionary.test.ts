@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dicomDictionary, getTagName, isPrivateTag } from '../src/dictionary';
+import { dicomDictionary, getTagName, isPrivateTag } from '../src/utils/dictionary';
 
 describe('dictionary helpers', () => {
   it('resolves known tags and falls back for unknown faces', () => {

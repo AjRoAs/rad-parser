@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { fullParse, shallowParse, mediumParse } from '../src/index.js';
+import { parse } from '../src/index.js';
 import dcmjs from 'dcmjs';
 import dicomParser from 'dicom-parser';
 import efferentDicom from 'efferent-dicom';
@@ -90,15 +90,15 @@ function benchmarkParser(
     let dataset;
     switch (parserName) {
       case 'rad-parser':
-        dataset = fullParse(fileData);
+        dataset = parse(fileData, { type: 'full' });
         elementCount = Object.keys(dataset.dict || {}).length;
         break;
       case 'rad-parser-shallow':
-        dataset = shallowParse(fileData);
+        dataset = parse(fileData, { type: 'shallow' });
         elementCount = Object.keys(dataset).length;
         break;
       case 'rad-parser-medium':
-        dataset = mediumParse(fileData);
+        dataset = parse(fileData, { type: 'light' });
         elementCount = Object.keys(dataset.dict || {}).length;
         break;
       case 'dcmjs':
