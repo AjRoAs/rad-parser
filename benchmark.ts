@@ -309,7 +309,29 @@ function printResults(stats: ParserStats[]): void {
 async function runBenchmark(): Promise<void> {
   // Find test_data directory (could be at project root or relative to this file)
   const projectRoot = resolve(__dirname, './');
-  const testDataPath = join(projectRoot, 'test_data/21197522-9_20251130013123Examenes/DICOM');
+  // Try multiple possible paths
+  const possiblePaths = [
+    join(projectRoot, 'test_data/patient/DICOM'),
+    join(projectRoot, 'test_data/21197522-9_20251130013123Examenes/DICOM'),
+  ];
+  
+  let testDataPath: string | undefined;
+  for (const path of possiblePaths) {
+    try {
+      statSync(path);
+      testDataPath = path;
+      break;
+    } catch {
+      // Try next path
+    }
+  }
+  
+  if (!testDataPath) {
+    console.error('Test data directory not found. Tried:');
+    possiblePaths.forEach(p => console.error(`  - ${p}`));
+    console.error('Please ensure test_data/patient/DICOM exists with DICOM files');
+    process.exit(1);
+  }
 
   const parsers = ['rad-parser', 'rad-parser-shallow', 'rad-parser-medium'];
   const maxFiles = 50; // Limit to first 50 files for faster benchmarking

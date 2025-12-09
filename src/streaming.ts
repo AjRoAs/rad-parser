@@ -300,9 +300,10 @@ export class StreamingParser {
       }
     }
 
-    // Format tag
+    // Format tag in multiple formats for compatibility
     const tagHex = `x${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
     const tagComma = `${group.toString(16).padStart(4, '0')},${element.toString(16).padStart(4, '0')}`;
+    const tagPlain = `${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
 
     // Handle sequences
     if (vr === 'SQ' || length === 0xffffffff) {
@@ -329,8 +330,8 @@ export class StreamingParser {
         };
 
         return {
-          dict: { [tagHex]: elementData, [tagComma]: elementData },
-          normalizedElements: { [tagHex]: elementData, [tagComma]: elementData },
+          dict: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
+          normalizedElements: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
         };
       } else if (view.getRemainingBytes() >= length) {
         const sequence = parseSequence(
@@ -353,8 +354,8 @@ export class StreamingParser {
         };
 
         return {
-          dict: { [tagHex]: elementData, [tagComma]: elementData },
-          normalizedElements: { [tagHex]: elementData, [tagComma]: elementData },
+          dict: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
+          normalizedElements: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
         };
       } else {
         // Not enough data - wait for more
@@ -376,17 +377,21 @@ export class StreamingParser {
 
     // Handle pixel data
     const isPixelData = group === 0x7fe0 && element === 0x0010;
-    let value: string | number | Array<string | number> | Record<string, unknown> | undefined = undefined;
+    let value: string | number | Array<string | number> | Record<string, unknown> | Uint8Array | Array<Uint8Array> | undefined = undefined;
 
     if (isPixelData) {
       const pixelDataResult = extractPixelDataFromView(view, length, this.state.transferSyntax);
       if (pixelDataResult) {
-        value = {
-          pixelData: Array.from(pixelDataResult.pixelData),
-          isEncapsulated: pixelDataResult.isEncapsulated,
-          fragments: pixelDataResult.fragments,
-          transferSyntax: pixelDataResult.transferSyntax,
-        };
+        // Export pixel data in compatible format:
+        // - Uncompressed: Direct Uint8Array
+        // - Encapsulated: Array<Uint8Array> (fragments)
+        if (pixelDataResult.isEncapsulated && pixelDataResult.fragmentArrays && pixelDataResult.fragmentArrays.length > 0) {
+          // Encapsulated: return array of fragments
+          value = pixelDataResult.fragmentArrays;
+        } else {
+          // Uncompressed: return direct Uint8Array
+          value = pixelDataResult.pixelData;
+        }
       } else {
         // Skip pixel data if extraction fails
         if (length > 0 && view.getRemainingBytes() >= length) {
@@ -411,7 +416,7 @@ export class StreamingParser {
       value = undefined;
     }
 
-    // Create element
+    // Create element with both uppercase and lowercase keys
     const elementData: DicomElement = {
       vr,
       VR: vr,
@@ -419,11 +424,13 @@ export class StreamingParser {
       value: value,
       length: length,
       Length: length,
+      items: undefined,
+      Items: undefined,
     };
 
     return {
-      dict: { [tagHex]: elementData, [tagComma]: elementData },
-      normalizedElements: { [tagHex]: elementData, [tagComma]: elementData },
+      dict: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
+      normalizedElements: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
     };
   }
 
@@ -434,10 +441,11 @@ export class StreamingParser {
     view: SafeDataView,
     vr: string,
     length: number
-  ): string | number | Array<string | number> | Record<string, unknown> {
+  ): string | number | Array<string | number> | Record<string, unknown> | Uint8Array {
     if (vr === 'OB' || vr === 'OW' || vr === 'OF' || vr === 'OD' || vr === 'OL' || vr === 'UN') {
+      // Binary data - return as Uint8Array for efficiency
       const bytes = view.readBytes(length);
-      return Array.from(bytes);
+      return new Uint8Array(bytes);
     }
 
     if (vr === 'AT') {

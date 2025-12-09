@@ -194,6 +194,7 @@ function parseElement(
     const sequence = parseSequence(view, explicitVR, littleEndian, characterSet, length === 0xffffffff);
     const tagHex = `x${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
     const tagComma = `${group.toString(16).padStart(4, '0')},${element.toString(16).padStart(4, '0')}`;
+    const tagPlain = `${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
     
     const elementData: DicomElement = {
       vr: 'SQ',
@@ -207,8 +208,8 @@ function parseElement(
     };
     
     return {
-      dict: { [tagHex]: elementData, [tagComma]: elementData },
-      normalizedElements: { [tagHex]: elementData, [tagComma]: elementData },
+      dict: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
+      normalizedElements: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
     };
   }
   
@@ -235,11 +236,12 @@ function parseElement(
     return null;
   }
   
-  // Format tag
+  // Format tag in multiple formats for compatibility
   const tagHex = `x${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
   const tagComma = `${group.toString(16).padStart(4, '0')},${element.toString(16).padStart(4, '0')}`;
+  const tagPlain = `${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
   
-  // Create element
+  // Create element with both uppercase and lowercase keys
   const elementData: DicomElement = {
     vr,
     VR: vr,
@@ -247,11 +249,13 @@ function parseElement(
     value: value as string | number | Array<string | number> | Record<string, unknown>,
     length: length,
     Length: length,
+    items: undefined,
+    Items: undefined,
   };
   
   return {
-    dict: { [tagHex]: elementData, [tagComma]: elementData },
-    normalizedElements: { [tagHex]: elementData, [tagComma]: elementData },
+    dict: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
+    normalizedElements: { [tagHex]: elementData, [tagComma]: elementData, [tagPlain]: elementData },
   };
 }
 

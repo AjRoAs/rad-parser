@@ -385,20 +385,8 @@ export function extractPixelData(byteArray: Uint8Array): PixelDataInfo | null {
           pixelData: result.pixelData,
           transferSyntax: result.transferSyntax || expectedTransferSyntax,
           isEncapsulated: result.isEncapsulated,
-          fragments: result.fragments?.map(f => {
-            // Need to return actual fragment data if requested? 
-            // PixelDataInfo in types defines fragments? 
-            // PixelDataResult has fragments as {offset, length}.
-            // PixelDataInfo has fragments as Uint8Array[].
-            // We need to implement full fragment extraction if we want to match type.
-            // For now, let's keep it simple or implement the mapping if `extractPixelDataFromView` returns meta.
-            // `extractPixelDataFromView` returns PixelDataResult (Uint8Array, isEncapsulated, fragments: {offset, length}).
-            // But PixelDataInfo wants Uint8Array[] for fragments.
-            // Wait, checking types.ts:
-            // fragments?: Uint8Array[];
-            
-            // `extractPixelDataFromView` returns { pixelData (All fragments concat), fragments: [{offset, length}] }
-            // So we can slice the pixelData if needed.
+          fragments: result.fragmentArrays || result.fragments?.map(f => {
+            // Fallback: slice from concatenated pixelData if fragmentArrays not available
             return result.pixelData.subarray(f.offset, f.offset + f.length);
           })
         };
@@ -785,11 +773,13 @@ function parseDataElements(
         }
       }
 
-      // Store in multiple formats for compatibility
+      // Store in all tag formats for compatibility
+      // parseElement already returns elements in all formats, so merge them
       for (const tag in element.dict) {
         dict[tag] = element.dict[tag];
-        normalizedElements[normalizeTag(tag)] = element.dict[tag];
-        normalizedElements[formatTagWithComma(tag)] = element.dict[tag];
+      }
+      for (const tag in element.normalizedElements) {
+        normalizedElements[tag] = element.normalizedElements[tag];
       }
     } catch {
       // Error reading element - stop parsing
@@ -854,9 +844,10 @@ function parseElement(
     }
   }
 
-  // Format tag
+  // Format tag in multiple formats for compatibility
   const tagHex = `x${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
   const tagComma = `${group.toString(16).padStart(4, '0')},${element.toString(16).padStart(4, '0')}`;
+  const tagPlain = `${group.toString(16).padStart(4, '0')}${element.toString(16).padStart(4, '0')}`;
 
   // Handle sequences
   if (vr === 'SQ' || length === 0xffffffff) {
@@ -868,24 +859,30 @@ function parseElement(
       length === 0xffffffff
     );
 
+    const elementLength = length === 0xffffffff ? undefined : length;
     const elementData: DicomElement = {
       vr: 'SQ',
-      Value: sequence as unknown as Array<string | number> | Record<string, unknown>,
-      length: length === 0xffffffff ? undefined : length,
+      VR: 'SQ', // Uppercase version (enumerable)
+      Value: sequence as unknown as Array<string | number> | Record<string, unknown> | Array<Uint8Array>,
+      value: sequence as unknown as Array<string | number> | Record<string, unknown> | Array<Uint8Array>, // Lowercase version (enumerable)
+      length: elementLength,
+      Length: elementLength, // Uppercase version (enumerable)
       items: sequence as unknown[],
+      Items: sequence as unknown[], // Uppercase version (enumerable)
     };
 
-    // Add compatibility properties as non-enumerable
-    Object.defineProperties(elementData, {
-      VR: { value: 'SQ', enumerable: false, writable: true },
-      value: { value: sequence, enumerable: false, writable: true },
-      Length: { value: length === 0xffffffff ? undefined : length, enumerable: false, writable: true },
-      Items: { value: sequence, enumerable: false, writable: true }
-    });
-
+    // Store in all tag formats for compatibility
     return {
-      dict: { [tagHex]: elementData },
-      normalizedElements: { [tagHex]: elementData },
+      dict: {
+        [tagHex]: elementData,
+        [tagComma]: elementData,
+        [tagPlain]: elementData,
+      },
+      normalizedElements: {
+        [tagHex]: elementData,
+        [tagComma]: elementData,
+        [tagPlain]: elementData,
+      },
     };
   }
 
@@ -893,7 +890,7 @@ function parseElement(
   const isPixelData = group === 0x7fe0 && element === 0x0010;
 
   // Read value
-  let value: string | number | Array<string | number> | Record<string, unknown> | Uint8Array | undefined =
+  let value: string | number | Array<string | number> | Record<string, unknown> | Uint8Array | Array<Uint8Array> | undefined =
     undefined;
 
   if (isPixelData) {
@@ -922,13 +919,16 @@ function parseElement(
         const pixelDataResult = extractPixelDataFromView(view, length, context.transferSyntax);
 
         if (pixelDataResult) {
-          // Store pixel data with metadata
-          value = {
-              pixelData: pixelDataResult.pixelData, // Keep as Uint8Array
-              isEncapsulated: pixelDataResult.isEncapsulated,
-              fragments: pixelDataResult.fragments,
-              transferSyntax: pixelDataResult.transferSyntax,
-          };
+          // Export pixel data in compatible format:
+          // - Uncompressed: Direct Uint8Array
+          // - Encapsulated: Array<Uint8Array> (fragments)
+          if (pixelDataResult.isEncapsulated && pixelDataResult.fragmentArrays && pixelDataResult.fragmentArrays.length > 0) {
+            // Encapsulated: return array of fragments
+            value = pixelDataResult.fragmentArrays;
+          } else {
+            // Uncompressed: return direct Uint8Array
+            value = pixelDataResult.pixelData;
+          }
 
           // View position is already advanced by extractPixelData
         } else {
@@ -975,24 +975,34 @@ function parseElement(
     return null;
   }
 
-  // Create element
-  // Create element with primary keys suitable for JSON output
+  // Create element with both uppercase and lowercase keys (enumerable)
   const elementData: DicomElement = {
     vr,
+    VR: vr, // Uppercase version (enumerable)
     Value: value,
+    value: value, // Lowercase version (enumerable)
     length,
+    Length: length, // Uppercase version (enumerable)
   };
 
-  // Add compatibility properties as non-enumerable
-  Object.defineProperties(elementData, {
-    VR: { value: vr, enumerable: false, writable: true },
-    value: { value: value, enumerable: false, writable: true },
-    Length: { value: length, enumerable: false, writable: true }
-  });
+  // Add items/Items if undefined (for consistency)
+  if (elementData.items === undefined) {
+    elementData.items = undefined;
+    elementData.Items = undefined;
+  }
 
+  // Store in all tag formats for compatibility
   return {
-    dict: { [tagHex]: elementData },
-    normalizedElements: { [tagHex]: elementData },
+    dict: {
+      [tagHex]: elementData,
+      [tagComma]: elementData,
+      [tagPlain]: elementData,
+    },
+    normalizedElements: {
+      [tagHex]: elementData,
+      [tagComma]: elementData,
+      [tagPlain]: elementData,
+    },
   };
 }
 
@@ -1081,15 +1091,24 @@ function createDataSet(
   normalizedElements: Record<string, DicomElement>
 ): DicomDataSet {
   const getElement = (tag: string): DicomElement | undefined => {
+    // Try multiple tag format variations for maximum compatibility
     const normalized = normalizeTag(tag);
     const comma = formatTagWithComma(tag);
+    const plain = tag.replace(/^x/i, '').replace(/,/g, '').toUpperCase();
+    const plainLower = plain.toLowerCase();
+    
+    // Try all variations in order of preference
     return (
       dict[tag] ||
       dict[normalized] ||
       dict[comma] ||
-      normalizedElements[normalized] ||
+      dict[plain] ||
+      dict[plainLower] ||
       normalizedElements[tag] ||
-      normalizedElements[comma]
+      normalizedElements[normalized] ||
+      normalizedElements[comma] ||
+      normalizedElements[plain] ||
+      normalizedElements[plainLower]
     );
   };
 

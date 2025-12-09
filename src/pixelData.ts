@@ -13,6 +13,7 @@ export interface PixelDataResult {
   pixelData: Uint8Array;
   isEncapsulated: boolean;
   fragments?: Array<{ offset: number; length: number }>;
+  fragmentArrays?: Uint8Array[]; // Array of fragment Uint8Arrays for encapsulated data
   transferSyntax?: string;
 }
 
@@ -67,6 +68,7 @@ function extractEncapsulatedPixelData(
   transferSyntax?: string
 ): PixelDataResult | null {
   const fragments: Array<{ offset: number; length: number }> = [];
+  const fragmentArrays: Uint8Array[] = [];
   const maxFragments = 10000; // Safety limit
   let fragmentCount = 0;
   const allFragments: number[] = [];
@@ -100,6 +102,8 @@ function extractEncapsulatedPixelData(
         // Read fragment data
         if (view.getRemainingBytes() >= fragLength) {
           const fragData = view.readBytes(fragLength);
+          const fragArray = new Uint8Array(fragData);
+          fragmentArrays.push(fragArray);
           allFragments.push(...Array.from(fragData));
           fragmentCount++;
         } else {
@@ -125,6 +129,7 @@ function extractEncapsulatedPixelData(
       pixelData: new Uint8Array(allFragments),
       isEncapsulated: true,
       fragments: fragments,
+      fragmentArrays: fragmentArrays,
       transferSyntax: transferSyntax,
     };
   } catch {
