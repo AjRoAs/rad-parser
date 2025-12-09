@@ -48,6 +48,12 @@ const patientId = dataset.string('x00100020'); // Patient ID
 const studyDate = dataset.string('x00080020'); // Study Date
 ```
 
+### CommonJS usage
+
+```javascript
+const { parseWithRadParser } = require('rad-parser');
+```
+
 ### Tag Formats
 
 The parser supports multiple tag formats for compatibility:

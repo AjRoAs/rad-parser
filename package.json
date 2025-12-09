@@ -1,13 +1,16 @@
 {
   "name": "rad-parser",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A lightweight, performant, self-contained DICOM parser with zero external dependencies",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     }
   },
   "type": "module",
@@ -41,7 +44,8 @@
     "package.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:cjs",
+    "build:cjs": "esbuild src/index.ts --bundle --format=cjs --platform=node --target=node16 --outfile=dist/index.cjs --log-level=info",
     "bundle:full": "esbuild src/index.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser.js --sourcemap --log-level=info && esbuild src/index.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser.min.js --minify --log-level=info",
     "bundle:lite": "esbuild src/index-lite.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser-nodict.js --sourcemap --log-level=info && esbuild src/index-lite.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser-nodict.min.js --minify --log-level=info",
     "bundle:dictionary": "esbuild src/dictionary-entry.ts --bundle --format=esm --target=es2020 --platform=neutral --outfile=dist/rad-parser-dictionary.js --sourcemap --log-level=info",
