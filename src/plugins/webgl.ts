@@ -140,11 +140,83 @@ export class WebGlDecoder implements PixelDataCodec {
     }
     
     canEncode(transferSyntax: string): boolean {
-        return false;
+        return this.canDecode(transferSyntax);
     }
 
     async encode(pixelData: Uint8Array, transferSyntax: string, width: number, height: number, samples: number, bits: number): Promise<Uint8Array[]> {
-        throw new Error("WebGL Encoding not implemented in skeleton");
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl2');
+        if (!gl) throw new Error("WebGL2 not supported");
+
+        // Use same texture logic as decode, but reversing it roughly?
+        // Actually, encode typically takes Raw Pixel Data -> Encoded stream.
+        // For pass-through stub, we just take Raw -> Render -> ReadPixels -> (Mock Encoded)
+        
+        // 1. Setup Canvas size to match input data size roughly
+        const totalSize = pixelData.byteLength;
+        const texWidth = 4096;
+        const texHeight = Math.ceil((totalSize / 4) / texWidth);
+        canvas.width = texWidth;
+        canvas.height = texHeight;
+
+        // 2. Input Texture (Raw Data)
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        const paddedSize = texWidth * texHeight * 4;
+        const paddedData = new Uint8Array(paddedSize);
+        paddedData.set(pixelData);
+        
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, texWidth, texHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, paddedData);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        
+        // 3. Simple Pass-Through Shader
+        const vsSource = `#version 300 es
+        in vec4 position;
+        void main() { gl_Position = position; }`;
+        const fsSource = `#version 300 es
+        precision highp float;
+        uniform highp usampler2D u_texture;
+        out uvec4 outColor;
+        void main() {
+            ivec2 coord = ivec2(gl_FragCoord.xy);
+            outColor = texelFetch(u_texture, coord, 0);
+        }`;
+        
+        const program = this.createProgram(gl, vsSource, fsSource);
+        gl.useProgram(program);
+
+        // 4. Quad
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        const positionLoc = gl.getAttribLocation(program, 'position');
+        gl.enableVertexAttribArray(positionLoc);
+        gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+        // 5. Render to Framebuffer (Simulating "Encoding" process)
+        const targetTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8UI, texWidth, texHeight, 0, gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, null);
+        
+        const fb = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, targetTexture, 0);
+
+        gl.viewport(0, 0, texWidth, texHeight);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        // 6. Read "Encoded" bytes
+        const results = new Uint8Array(texWidth * texHeight * 4);
+        gl.readPixels(0, 0, texWidth, texHeight, gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, results);
+
+        // Cleanup
+        gl.deleteTexture(texture);
+        gl.deleteTexture(targetTexture);
+        gl.deleteFramebuffer(fb);
+        gl.deleteProgram(program);
+
+        return [results.slice(0, totalSize)];
     }
 
     

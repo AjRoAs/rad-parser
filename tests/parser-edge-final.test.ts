@@ -1,11 +1,9 @@
-
-import { describe, it, expect } from 'vitest';
 import { 
     parse, 
     canParse, 
     parseWithMetadata, 
     extractTransferSyntax 
-} from '../src/core/parser';
+} from '../src/index';
 import { write } from '../src/core/writer';
 
 // Helper to create valid DICOM Part 10 buffer
@@ -58,14 +56,14 @@ describe('Parser Edge Cases', () => {
     });
 
     it('should return undefined if file is too small', () => {
-        expect(extractTransferSyntax(new Uint8Array(10))).toBeUndefined();
+        expect(extractTransferSyntax(new Uint8Array(10))).toBeNull();
     });
 
     it('should return undefined if file is not Part 10', () => {
         const buffer = new Uint8Array(20);
         const view = new DataView(buffer.buffer);
         view.setUint16(0, 0x0008, true);
-        expect(extractTransferSyntax(buffer)).toBeUndefined();
+        expect(extractTransferSyntax(buffer)).toBeNull();
     });
   });
 
@@ -97,7 +95,7 @@ describe('Parser Edge Cases', () => {
 
          const result = parseWithMetadata(buffer);
          expect(result.dataset.dict['x00100010']).toBeDefined();
-         expect(result.transferSyntax).toEqual('1.2.840.10008.1.2.1'); 
+         expect(result.transferSyntax).toEqual('1.2.840.10008.1.2.1');
          
          const val = result.dataset.dict['x00100010'].Value;
          expect(val).toMatchObject({ Alphanumeric: 'Test^Patient' });

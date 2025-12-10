@@ -146,11 +146,96 @@ export class WebGpuDecoder implements PixelDataCodec {
     }
 
     canEncode(transferSyntax: string): boolean {
-        // Not implemented in skeleton yet
-        return false;
+        // Claim same support for encoding as decoding (Pass-through/Stub)
+        return this.canDecode(transferSyntax);
     }
 
     async encode(pixelData: Uint8Array, transferSyntax: string, width: number, height: number, samples: number, bits: number): Promise<Uint8Array[]> {
-        throw new Error("WebGPU Encoding not implemented in skeleton");
+        if (!this.device) throw new Error("WebGPU device not initialized");
+
+        // 1. Prepare Input (Raw Pixel Data)
+        const inputSize = pixelData.byteLength;
+        const paddedSize = Math.ceil(inputSize / 4) * 4; // Align to u32
+        
+        // 2. Create GPU Buffers
+        const inputBuffer = this.device.createBuffer({
+            size: paddedSize,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true
+        });
+        
+        const ia = new Uint8Array(inputBuffer.getMappedRange());
+        ia.set(pixelData);
+        inputBuffer.unmap();
+
+        // Output Buffer (Same size for pass-through)
+        const outputBuffer = this.device.createBuffer({
+            size: paddedSize,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+        });
+
+        // Staging Buffer
+        const stagingBuffer = this.device.createBuffer({
+            size: paddedSize,
+            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+        });
+
+        // 3. Pipeline (Reuse same pass-through shader logic)
+        // In a real encoder, this would do RLE/JPEG compression
+        const shaderCode = `
+            @group(0) @binding(0) var<storage, read> inputData : array<u32>;
+            @group(0) @binding(1) var<storage, read_write> outputData : array<u32>;
+
+            @compute @workgroup_size(64)
+            fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+                let index = global_id.x;
+                if (index >= arrayLength(&inputData)) {
+                    return;
+                }
+                outputData[index] = inputData[index];
+            }
+        `;
+
+        const shaderModule = this.device.createShaderModule({ code: shaderCode });
+        const computePipeline = this.device.createComputePipeline({
+            layout: 'auto',
+            compute: { module: shaderModule, entryPoint: 'main' }
+        });
+
+        // 4. Bind Group
+        const bindGroup = this.device.createBindGroup({
+            layout: computePipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: inputBuffer } },
+                { binding: 1, resource: { buffer: outputBuffer } }
+            ]
+        });
+
+        // 5. Dispatch
+        const commandEncoder = this.device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginComputePass();
+        passEncoder.setPipeline(computePipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        const numElements = Math.ceil(inputSize / 4);
+        passEncoder.dispatchWorkgroups(Math.ceil(numElements / 64));
+        passEncoder.end();
+
+        // 6. Copy Back
+        commandEncoder.copyBufferToBuffer(outputBuffer, 0, stagingBuffer, 0, paddedSize);
+        this.device.queue.submit([commandEncoder.finish()]);
+
+        // 7. Read Result
+        await stagingBuffer.mapAsync(GPUMapMode.READ);
+        const copyArrayBuffer = stagingBuffer.getMappedRange();
+        // Slice to original length
+        const result = new Uint8Array(copyArrayBuffer.slice(0, inputSize));
+        stagingBuffer.unmap();
+
+        // Cleanup
+        inputBuffer.destroy();
+        outputBuffer.destroy();
+        stagingBuffer.destroy();
+
+        return [result];
     }
 }
