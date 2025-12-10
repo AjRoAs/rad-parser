@@ -449,7 +449,7 @@ export class StreamingParser {
     // Normalize value to array if needed (to match standard parser behavior)
     let normalizedValue = value;
     if (value !== undefined && !(value instanceof Uint8Array) && !Array.isArray(value)) {
-      normalizedValue = [value];
+      normalizedValue = [value] as Array<string | number>;
     }
 
     const elementData: DicomElement = {

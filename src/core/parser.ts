@@ -1285,7 +1285,7 @@ function parseElementValue(
     const parts = str.split('\\').filter(p => p.trim());
     if (parts.length === 1) {
       const num = parseFloat(parts[0]);
-      return isNaN(num) ? str : vr === 'US' || vr === 'UL' ? Math.floor(num) : Math.floor(num);
+      return isNaN(num) ? str : Math.floor(num);
     }
     return parts.map(p => {
       const num = parseFloat(p.trim());

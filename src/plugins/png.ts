@@ -5,30 +5,23 @@
  * No external dependencies (uses built-ins).
  */
 import { PixelDataCodec } from './codecs';
-// Use require to avoid build-time issues if bundled for browser (though this is a Node plugin)
-import * as zlib from 'zlib'; 
 
 export class NodePngEncoder implements PixelDataCodec {
     name = 'png-node';
     priority = 20;
 
     isSupported(): boolean {
-        return typeof process !== 'undefined' && !!zlib;
+        // Only supported in Node.js environment
+        return typeof process !== 'undefined' && 
+               process.versions != null && 
+               process.versions.node != null;
     }
 
     canDecode(ts: string): boolean {
-        return false; // Encoder only for now
+        return false; // Encoder only
     }
 
     canEncode(ts: string): boolean {
-        // Map PNG to a TS? Or just general capability?
-        // Usually secondary capture or explicit export.
-        // We'll map it to "1.2.840.10008.1.2.4.50" (JPG Baseline) as a proxy for "Compressed Image"?
-        // Or better, just expose it and let the script pick it manually.
-        // But to fit the 'process_examples.ts' flow, we need a TS.
-        // Let's assume we want to encode *any* syntax to PNG if requested.
-        // Be strict: this doesn't replace DICOM TS. It's an export format.
-        // But for the tool, I'll allow encoding '1.2.840.10008.1.2.4.50' (as "Generic Compressed").
         return ts === 'png' || ts === '1.2.840.10008.1.2.4.50'; 
     }
 
@@ -36,12 +29,21 @@ export class NodePngEncoder implements PixelDataCodec {
         throw new Error("PNG Decoding not implemented");
     }
 
-    async encode(pixelData: Uint8Array, transferSyntax: string, width: number, height: number, samples: number, bits: number): Promise<Uint8Array[]> {
-        if (typeof zlib === 'undefined') throw new Error("zlib missing");
+    async encode(pixelData: Uint8Array, transferSyntax: string, width: number, height: number, samples: number, bits: number): Promise<Uint8Array[]> {     
+        // Dynamic import to avoid bundling 'zlib' for browser builds
+        let zlib;
+        try {
+            // webpack/esbuild ignore magic comment or variable trick might be needed
+            // depending on the bundler. specific to esbuild:
+            const zlibName = 'zlib'; 
+            zlib = await import(zlibName);
+        } catch (e) {
+            throw new Error("zlib not available (Node.js only)");
+        }
+
+        if (!zlib || !zlib.deflateSync) throw new Error("zlib missing");
 
         // 1. Prepare Scanlines (Filter 0: None)
-        // PNG format: [FilterByte, R, G, B, ...] per row
-        // Input: RGB or Grayscale
         const bytesPerPixel = (bits / 8) * samples;
         const rowSize = width * bytesPerPixel;
         const rawBuffer = new Uint8Array(height * (rowSize + 1));
@@ -49,7 +51,6 @@ export class NodePngEncoder implements PixelDataCodec {
         for (let y = 0; y < height; y++) {
             const destOffset = y * (rowSize + 1);
             rawBuffer[destOffset] = 0; // Filter Type 0 (None)
-            // Copy row
             const srcOffset = y * rowSize;
             rawBuffer.set(pixelData.subarray(srcOffset, srcOffset + rowSize), destOffset + 1);
         }

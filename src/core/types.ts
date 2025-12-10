@@ -44,6 +44,12 @@ export interface DicomDataSet {
   dict: Record<string, DicomElement>;
   // Elements accessor for backward compatibility (normalized tags)
   elements: Record<string, DicomElement>;
+  
+  // Optional Metadata
+  transferSyntax?: string;
+  characterSet?: string;
+  rows?: number;
+  columns?: number;
 }
 
 

@@ -8,7 +8,7 @@
  */
 import { PixelDataCodec, registry } from './codecs';
 import { RleCodec } from './rle';
-import { NodePngEncoder } from './png'; 
+// import { NodePngEncoder } from './png'; // Unused and causes bundling issues 
 // We import classes for instanceof checks or specific sniffing logic if needed,
 // but mainly we use the registry to avoid circular deps.
 
@@ -46,7 +46,7 @@ export class AutoDetectCodec implements PixelDataCodec {
                     try {
                         return await c.decode(encodedBuffer, length, info);
                     } catch(e) {
-                        console.warn(`[AutoDetect] Candidate ${c.name} failed: ${e.message}. Trying sniff...`);
+                        console.warn(`[AutoDetect] Candidate ${c.name} failed: ${(e as Error).message}. Trying sniff...`);
                     }
                 }
             }
