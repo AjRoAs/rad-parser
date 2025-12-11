@@ -8,61 +8,81 @@
  */
 
 /** Compression helpers exposed by the package. */
-export { decompressJPEG, decompressPixelData, supportsImageDecoder } from './utils/compression';
+export {
+    decompressJPEG,
+    decompressPixelData,
+    supportsImageDecoder,
+} from "./utils/compression";
 /** Dictionary and tag utilities */
-export { dicomDictionary, getTagName, isPrivateTag } from './utils/dictionary';
-export { DicomParseError, createParseError } from './core/errors';
+export { dicomDictionary, getTagName, isPrivateTag } from "./utils/dictionary";
+export { DicomParseError, createParseError } from "./core/errors";
 /** Core parser entry points */
 
 export {
-  canParse,
-  parseWithMetadata,
-  parse, // Unified API
-
-  type ParseResult,
-  type ParseOptions,
-  type UnifiedParseOptions,
-  extractPixelData,
-
-} from './core/parser';
-export { write, type WriteOptions } from './core/writer';
-export { anonymize, type AnonymizationOptions } from './core/anonymizer';
-export { extractTransferSyntax, TRANSFER_SYNTAX } from './utils/extractTransferSyntax';
+    canParse,
+    parseWithMetadata,
+    parse, // Unified API
+    type ParseResult,
+    type ParseOptions,
+    type UnifiedParseOptions,
+    extractPixelData,
+} from "./core/parser";
+export { write, type WriteOptions } from "./core/writer";
+export { anonymize, type AnonymizationOptions } from "./core/anonymizer";
+export {
+    extractTransferSyntax,
+    TRANSFER_SYNTAX,
+} from "./utils/extractTransferSyntax";
 /** Pixel data utilities */
-export { isCompressedTransferSyntax, type PixelDataResult } from './utils/pixelData';
+export {
+    isCompressedTransferSyntax,
+    type PixelDataResult,
+} from "./utils/pixelData";
 /** Safe byte readers and sequence helpers */
-export { SafeDataView } from './utils/SafeDataView';
-export { parseSequence } from './utils/sequenceParser';
+export { SafeDataView } from "./utils/SafeDataView";
+export { parseSequence } from "./utils/sequenceParser";
 export {
-  StreamingParser,
-  parseFromAsyncIterator,
-  parseFromStream,
-  type ElementCallback,
-  type StreamingOptions,
-} from './core/streaming';
-export { formatTagWithComma, normalizeTag } from './utils/tagUtils';
-export type { DicomDataSet, DicomElement, ShallowDicomDataSet, ShallowDicomElement, PixelDataInfo } from './core/types';
+    StreamingParser,
+    parseFromAsyncIterator,
+    parseFromStream,
+    type ElementCallback,
+    type StreamingOptions,
+} from "./core/streaming";
+export { formatTagWithComma, normalizeTag } from "./utils/tagUtils";
+export type {
+    DicomDataSet,
+    DicomElement,
+    ShallowDicomDataSet,
+    ShallowDicomElement,
+    PixelDataInfo,
+} from "./core/types";
 export {
-  parseAgeString,
-  parseDate,
-  parseDateTime,
-  parsePersonName,
-  parseTime,
-  parseValueByVR,
-} from './utils/valueParsers';
-export { detectVR, detectVRForPrivateTag, requiresExplicitLength } from './utils/vrDetection';
+    parseAgeString,
+    parseDate,
+    parseDateTime,
+    parsePersonName,
+    parseTime,
+    parseValueByVR,
+} from "./utils/valueParsers";
+export {
+    detectVR,
+    detectVRForPrivateTag,
+    requiresExplicitLength,
+} from "./utils/vrDetection";
 // Codecs & Plugins
 // Codecs & Plugins
-export { registry, type PixelDataCodec } from './plugins/codecs';
-export { RleCodec } from './plugins/rle';
-export { BrowserImageCodec } from './plugins/browser';
-export { WebGpuDecoder } from './plugins/webgpu';
-export { WebGlDecoder } from './plugins/webgl';
-export { Jpeg2000Decoder } from './plugins/jpeg2000';
-export { JpegLsDecoder } from './plugins/jpegls';
-export { JpegLosslessDecoder } from './plugins/jpegLossless';
-export { VideoDecoder } from './plugins/video';
-export { NodePngEncoder } from './plugins/png';
-export { JpegLosslessNativeDecoder } from './plugins/jpegLosslessNative';
-export { AutoDetectCodec } from './plugins/autodetect';
+export { registry, type PixelDataCodec } from "./plugins/codecs";
+export { RleCodec } from "./plugins/rle";
+export { BrowserImageCodec } from "./plugins/browser";
+export { WebGpuDecoder } from "./plugins/webgpu";
+export { WebGlDecoder } from "./plugins/webgl";
+export { Jpeg2000Decoder } from "./plugins/jpeg2000";
+export { JpegLsDecoder } from "./plugins/jpegls";
+export { JpegLosslessDecoder } from "./plugins/jpegLossless";
+export { VideoDecoder } from "./plugins/video";
+export { NodePngEncoder } from "./plugins/png";
+export { JpegLosslessNativeDecoder } from "./plugins/jpegLosslessNative";
+export { AutoDetectCodec } from "./plugins/autodetect";
 
+// Initialize dynamic codec registration
+import "./plugins/auto-register";

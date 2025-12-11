@@ -1,20 +1,24 @@
-
 /**
  * PNG Encoder Plugin (Node.js Native)
  * Uses Node's 'zlib' module for DEFLATE compression.
  * No external dependencies (uses built-ins).
  */
-import { PixelDataCodec } from './codecs';
+import { CodecInfo, PixelDataCodec } from "./codecs";
 
 export class NodePngEncoder implements PixelDataCodec {
-    name = 'png-node';
+    name = "png-node";
     priority = 20;
+    codecInfo: CodecInfo = {
+        multiFrame: false, // Not applicable for an encoder, but required by interface
+    };
 
     isSupported(): boolean {
         // Only supported in Node.js environment
-        return typeof process !== 'undefined' && 
-               process.versions != null && 
-               process.versions.node != null;
+        return (
+            typeof process !== "undefined" &&
+            process.versions != null &&
+            process.versions.node != null
+        );
     }
 
     canDecode(ts: string): boolean {
@@ -22,20 +26,27 @@ export class NodePngEncoder implements PixelDataCodec {
     }
 
     canEncode(ts: string): boolean {
-        return ts === 'png' || ts === '1.2.840.10008.1.2.4.50'; 
+        return ts === "png" || ts === "1.2.840.10008.1.2.4.50";
     }
 
-    async decode(encodedBuffer: Uint8Array[], length?: number, info?: any): Promise<Uint8Array> {
+    async decode(encodedBuffer: Uint8Array[], info: any): Promise<Uint8Array> {
         throw new Error("PNG Decoding not implemented");
     }
 
-    async encode(pixelData: Uint8Array, transferSyntax: string, width: number, height: number, samples: number, bits: number): Promise<Uint8Array[]> {     
+    async encode(
+        pixelData: Uint8Array,
+        transferSyntax: string,
+        width: number,
+        height: number,
+        samples: number,
+        bits: number,
+    ): Promise<Uint8Array[]> {
         // Dynamic import to avoid bundling 'zlib' for browser builds
         let zlib;
         try {
             // webpack/esbuild ignore magic comment or variable trick might be needed
             // depending on the bundler. specific to esbuild:
-            const zlibName = 'zlib'; 
+            const zlibName = "zlib";
             zlib = await import(zlibName);
         } catch (e) {
             throw new Error("zlib not available (Node.js only)");
@@ -47,12 +58,15 @@ export class NodePngEncoder implements PixelDataCodec {
         const bytesPerPixel = (bits / 8) * samples;
         const rowSize = width * bytesPerPixel;
         const rawBuffer = new Uint8Array(height * (rowSize + 1));
-        
+
         for (let y = 0; y < height; y++) {
             const destOffset = y * (rowSize + 1);
             rawBuffer[destOffset] = 0; // Filter Type 0 (None)
             const srcOffset = y * rowSize;
-            rawBuffer.set(pixelData.subarray(srcOffset, srcOffset + rowSize), destOffset + 1);
+            rawBuffer.set(
+                pixelData.subarray(srcOffset, srcOffset + rowSize),
+                destOffset + 1,
+            );
         }
 
         // 2. Compress (Deflate)
@@ -60,9 +74,11 @@ export class NodePngEncoder implements PixelDataCodec {
 
         // 3. Construct PNG
         const chunks: Uint8Array[] = [];
-        
+
         // Header
-        chunks.push(new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
+        chunks.push(
+            new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        );
 
         // IHDR
         const ihdr = new Uint8Array(13);
@@ -74,13 +90,13 @@ export class NodePngEncoder implements PixelDataCodec {
         view.setUint8(10, 0); // Compression
         view.setUint8(11, 0); // Filter
         view.setUint8(12, 0); // Interlace
-        chunks.push(this.createChunk('IHDR', ihdr));
+        chunks.push(this.createChunk("IHDR", ihdr));
 
         // IDAT
-        chunks.push(this.createChunk('IDAT', compressed));
+        chunks.push(this.createChunk("IDAT", compressed));
 
         // IEND
-        chunks.push(this.createChunk('IEND', new Uint8Array(0)));
+        chunks.push(this.createChunk("IEND", new Uint8Array(0)));
 
         // Concat
         const totalLen = chunks.reduce((a, b) => a + b.length, 0);
@@ -98,28 +114,28 @@ export class NodePngEncoder implements PixelDataCodec {
         const len = data.length;
         const chunk = new Uint8Array(4 + 4 + len + 4);
         const view = new DataView(chunk.buffer);
-        
+
         view.setUint32(0, len);
         // Type
-        for(let i=0; i<4; i++) chunk[4+i] = type.charCodeAt(i);
+        for (let i = 0; i < 4; i++) chunk[4 + i] = type.charCodeAt(i);
         // Data
         chunk.set(data, 8);
-        
+
         // CRC (Type + Data)
         const crcInput = chunk.subarray(4, 8 + len);
         const crc = this.crc32(crcInput);
         view.setUint32(8 + len, crc);
-        
+
         return chunk;
     }
 
     private crc32(buf: Uint8Array): number {
         const table = this.getCrcTable();
-        let crc = 0 ^ (-1);
+        let crc = 0 ^ -1;
         for (let i = 0; i < buf.length; i++) {
-            crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xFF];
+            crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xff];
         }
-        return (crc ^ (-1)) >>> 0;
+        return (crc ^ -1) >>> 0;
     }
 
     private crcTable: Int32Array | null = null;
@@ -130,7 +146,7 @@ export class NodePngEncoder implements PixelDataCodec {
         for (let n = 0; n < 256; n++) {
             c = n;
             for (let k = 0; k < 8; k++) {
-                c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+                c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
             }
             table[n] = c;
         }
