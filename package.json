@@ -56,7 +56,9 @@
     "release": "npm run build && npm run bundle",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "benchmark": "tsx --tsconfig tsconfig.json benchmark.ts",
+    "benchmark": "tsx --tsconfig tsconfig.json scripts/benchmark.ts",
+    "benchmark:advanced": "tsx --tsconfig tsconfig.json scripts/benchmark_advanced_features.ts",
+    "benchmark:comprehensive": "tsx --tsconfig tsconfig.json scripts/comprehensive_benchmark.ts",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.ts\"",
     "prepublishOnly": "npm run release"
